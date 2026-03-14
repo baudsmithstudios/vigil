@@ -1,0 +1,56 @@
+services:
+  vigil:
+    build:
+      context: .
+      # To build for ARM64 (Pi): docker buildx build --platform linux/arm64 -t vigil .
+    image: vigil:latest
+    container_name: vigil
+
+    # Required for host-level metrics. pid:host lets gopsutil see all processes.
+    # network_mode:host gives accurate interface stats.
+    pid: host
+    network_mode: host
+
+    # --- Security hardening ---
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 128m
+    cpus: 0.5
+    tmpfs:
+      - /tmp:noexec,nosuid,size=16m
+
+    environment:
+      - TERM=xterm-256color
+
+    group_add:
+      - "44"  # video group — needed for /dev/vcio access (vcgencmd throttle reads)
+      # Docker container monitoring (opt-in): uncomment the line below and the
+      # socket volume mount. WARNING: The Docker socket grants full Docker API
+      # access (equivalent to root). See the Security section in README.md.
+      # - "999"   # docker group GID — run: getent group docker | cut -d: -f3
+
+    devices:
+      - /dev/vcio:/dev/vcio  # Pi VideoCore mailbox — needed for vcgencmd throttle reads
+
+    volumes:
+      - /proc:/proc:ro
+      - /sys:/sys:ro
+      - /etc/os-release:/etc/os-release:ro
+      # Config is mounted at runtime so secrets (webhook URLs) stay out of the image.
+      - ./config.toml:/app/config.toml:ro
+      # Docker socket for container monitoring (opt-in — see security note above).
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+      # IMPORTANT: point this at a directory on your external drive, not the SD card.
+      # Update this path to match your external drive's mount point.
+      - /path/to/external/drive/vigil:/data
+
+    # Allocate a TTY so the bubbletea dashboard renders correctly.
+    # If you want headless background collection instead, add:
+    #   command: ["--headless", "--config", "/app/config.toml"]
+    stdin_open: true
+    tty: true
+
+    restart: unless-stopped
