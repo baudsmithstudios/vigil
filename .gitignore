@@ -36,6 +36,14 @@ docs/superpowers/
 AGENTS.md
 .claude/
 
+# Secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+credentials*
+
 # Editor and OS
 .DS_Store
 *.swp
