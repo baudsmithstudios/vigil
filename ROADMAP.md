@@ -1,6 +1,10 @@
 # Roadmap
 
-## Completed (v1)
+Vigil is an active project. Priorities and planned features may change as the project matures, and nothing in this roadmap is on a defined release schedule.
+
+This roadmap reflects current product direction, not guaranteed delivery commitments.
+
+## Shipped
 
 All v1 features have shipped:
 
@@ -24,7 +28,7 @@ Rounds out the core tool: better notifications, more Pi-relevant metrics, script
 
 ### TUI quit falls back to headless
 
-Pressing `q` exits the process, triggering a Docker container restart. The collector goes down for a few seconds every time someone closes the dashboard.
+Closing the dashboard should not interrupt collection or alerting.
 
 - `q` transitions to headless mode instead of exiting — collection and alerting continue uninterrupted
 - Container only restarts on explicit `Ctrl+C` or `docker compose down`
@@ -34,9 +38,9 @@ Pressing `q` exits the process, triggering a Docker container restart. The colle
 
 Changing thresholds or webhook URLs currently requires a container restart.
 
-- `SIGHUP` handler to re-read and validate `config.toml`
-- Atomically swap config if valid; log error and keep existing config if invalid
-- Trigger: `docker exec vigil kill -HUP 1`
+- Reload and validate `config.toml` without a full container restart
+- Apply valid config changes atomically and keep the current config if reload fails
+- Support an explicit reload signal for operational use
 
 ### ntfy.sh notifications
 
@@ -48,7 +52,7 @@ Changing thresholds or webhook URLs currently requires a container restart.
 
 SD card and USB storage performance degrades silently on Pis. Latency spikes and high utilization are early indicators of card wear or impending failure.
 
-- **I/O latency** — alert on sustained high `await` values
+- **I/O latency** — alert on sustained high disk wait times
 - **Disk utilization %** — percentage of time the device is busy
 - **Swap I/O rate** — swap in/out operations per second; sustained non-zero indicates RAM exhaustion
 - **SD card error counters** — non-zero delta is a warning
@@ -70,7 +74,7 @@ Diagnostic command for troubleshooting broken deployments.
 
 ### Wi-Fi signal quality
 
-- Parse `/proc/net/wireless` for link quality, signal dBm, noise dBm
+- Collect link quality, signal dBm, and noise dBm
 - Surface in TUI network panel
 - Configurable alert threshold for low signal strength
 
@@ -88,16 +92,16 @@ Silent reboots (power loss, kernel panic, watchdog) leave no trace.
 
 ### TUI historical views
 
-The data is already in SQLite — surface it without leaving the terminal.
+Historical data is already persisted. Surface it without leaving the terminal.
 
 - Keybinding to enter historical mode from any panel
 - Time-range navigation (last 1h / 6h / 24h)
 - Downsampled rollups (min/avg/max at 5-minute intervals) for longer ranges beyond raw retention
-- Separate rollup retention window (default 30 days); negligible storage (~1 KB/metric/day)
+- Separate rollup retention window for longer-term views with minimal storage overhead
 
 ---
 
-## Extras
+## Lower Priority
 
 ### Export command
 

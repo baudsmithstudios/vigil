@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/dashboard.png" alt="Vigil dashboard" width="800">
+  <img src="assets/dashboard.png" alt="Vigil dashboard" width="800">
 </p>
 
 <p align="center">
