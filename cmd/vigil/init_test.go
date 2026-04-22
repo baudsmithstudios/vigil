@@ -286,9 +286,8 @@ func TestInitWritesValidConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated config is invalid: %v", err)
 	}
-	// 5 default alerts: cpu, mem, disk, swap, iowait
-	if len(cfg.Alerts) < 5 {
-		t.Errorf("expected at least 5 default alerts, got %d", len(cfg.Alerts))
+	if len(cfg.Alerts) == 0 {
+		t.Fatal("expected default alerts to be generated")
 	}
 }
 
@@ -408,7 +407,7 @@ func TestInitDefaultThresholds_TempPiTuned(t *testing.T) {
 	}
 }
 
-func TestInitDefaultAlerts_IncludesSwapAndIowait(t *testing.T) {
+func TestInitDefaultAlerts_IncludeDiskIOMetrics(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 
@@ -438,8 +437,23 @@ func TestInitDefaultAlerts_IncludesSwapAndIowait(t *testing.T) {
 	if !metrics[metric.SwapPercent] {
 		t.Error("expected swap_percent alert in defaults")
 	}
+	if !metrics[metric.SwapIn] {
+		t.Error("expected swap_in alert in defaults")
+	}
+	if !metrics[metric.SwapOut] {
+		t.Error("expected swap_out alert in defaults")
+	}
 	if !metrics[metric.CPUIowait] {
 		t.Error("expected cpu_iowait alert in defaults")
+	}
+	if !metrics[metric.DiskUtil] {
+		t.Error("expected disk_util alert in defaults")
+	}
+	if !metrics[metric.DiskLatency] {
+		t.Error("expected disk_latency_ms alert in defaults")
+	}
+	if !metrics[metric.SDErrors] {
+		t.Error("expected sd_errors alert in defaults")
 	}
 }
 

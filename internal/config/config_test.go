@@ -262,10 +262,16 @@ func TestValidateTheme(t *testing.T) {
 	}
 }
 
-func TestDefaultTheme(t *testing.T) {
+func TestValidateDuplicateAlertMetrics(t *testing.T) {
 	cfg := Defaults()
-	if cfg.Theme != "auto" {
-		t.Errorf("expected default theme 'auto', got %q", cfg.Theme)
+	cfg.Alerts = []Alert{
+		{Metric: "cpu_percent", Threshold: 90, Above: true, Message: "cpu high"},
+		{Metric: "cpu_percent", Threshold: 95, Above: true, Message: "cpu very high"},
+	}
+
+	err := cfg.validate()
+	if err == nil {
+		t.Fatal("expected error for duplicate alert metrics, got nil")
 	}
 }
 

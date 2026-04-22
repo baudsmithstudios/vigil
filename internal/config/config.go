@@ -15,7 +15,7 @@ import (
 type Alert struct {
 	Metric         string  `toml:"metric"`
 	Threshold      float64 `toml:"threshold"`
-	Above          bool    `toml:"above"`           // true = fire when value > threshold
+	Above          bool    `toml:"above"` // true = fire when value > threshold
 	Message        string  `toml:"message"`
 	DeltaThreshold float64 `toml:"delta_threshold"` // fire if |change| >= this in one tick (0 = disabled)
 	SustainedTicks int     `toml:"sustained_ticks"` // consecutive ticks above threshold before firing (0 = immediate)
@@ -207,6 +207,16 @@ func (c Config) validate() error {
 			return fmt.Errorf("duplicate check name %q", pc.Name)
 		}
 		checkNames[pc.Name] = true
+	}
+	seenAlerts := make(map[string]bool, len(c.Alerts))
+	for _, a := range c.Alerts {
+		if a.Metric == "" {
+			return fmt.Errorf("alerts: metric must not be empty")
+		}
+		if seenAlerts[a.Metric] {
+			return fmt.Errorf("alerts: duplicate metric %q", a.Metric)
+		}
+		seenAlerts[a.Metric] = true
 	}
 	switch c.Theme {
 	case "", "auto", "dark", "light":

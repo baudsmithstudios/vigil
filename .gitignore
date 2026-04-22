@@ -35,6 +35,7 @@ docs/superpowers/
 # Claude
 AGENTS.md
 .claude/
+.codex
 
 # Secrets and credentials
 .env

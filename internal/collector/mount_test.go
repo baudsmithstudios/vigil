@@ -26,6 +26,15 @@ tmpfs /tmp tmpfs rw 0 0
 	}
 }
 
+func TestParseProcMounts_DecodesEscapedMountPaths(t *testing.T) {
+	content := `/dev/sdc1 /media/My\040Drive ext4 rw,relatime 0 0
+`
+	mounts := parseProcMounts([]byte(content))
+	if !mounts["/media/My Drive"] {
+		t.Error("expected escaped mount path to decode to /media/My Drive")
+	}
+}
+
 func TestMountCollector_NilWhenEmpty(t *testing.T) {
 	mc := newMountCollector(nil, "/proc/mounts")
 	result := mc.collect()

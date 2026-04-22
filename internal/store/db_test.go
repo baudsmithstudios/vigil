@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -49,6 +50,25 @@ func TestDB_WriteAndQuery(t *testing.T) {
 	}
 	if got[0].Value != 42.5 {
 		t.Errorf("expected value 42.5, got %f", got[0].Value)
+	}
+}
+
+func TestOpen_CreatesDatabaseWithOwnerOnlyPermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vigil.db")
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected mode 0600, got %04o", got)
 	}
 }
 
@@ -135,6 +155,44 @@ func TestDB_DismissAlert(t *testing.T) {
 	}
 	if len(alerts) != 0 {
 		t.Errorf("expected 0 active alerts after dismiss, got %d", len(alerts))
+	}
+}
+
+func TestDB_WriteAlert_ReactivatesDismissedAlert(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	firstFire := AlertRecord{
+		Name:    "high_cpu",
+		Message: "CPU above 90%",
+		FiredAt: time.Now(),
+	}
+	if err := db.WriteAlert(firstFire); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DismissAlert("high_cpu"); err != nil {
+		t.Fatalf("DismissAlert: %v", err)
+	}
+
+	// Re-fire the same alert name; it should become active again.
+	refire := AlertRecord{
+		Name:    "high_cpu",
+		Message: "CPU above 90% again",
+		FiredAt: time.Now().Add(time.Second),
+	}
+	if err := db.WriteAlert(refire); err != nil {
+		t.Fatalf("WriteAlert refire: %v", err)
+	}
+
+	alerts, err := db.ActiveAlerts()
+	if err != nil {
+		t.Fatalf("ActiveAlerts: %v", err)
+	}
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 active alert after refire, got %d", len(alerts))
+	}
+	if alerts[0].Message != "CPU above 90% again" {
+		t.Fatalf("expected updated message after refire, got %q", alerts[0].Message)
 	}
 }
 

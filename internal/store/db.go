@@ -38,11 +38,6 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	// Restrict database file to owner-only access.
-	if err := os.Chmod(path, 0600); err != nil && !os.IsNotExist(err) {
-		conn.Close()
-		return nil, fmt.Errorf("chmod database: %w", err)
-	}
 	if _, err := conn.Exec(schema); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
@@ -53,6 +48,11 @@ func Open(path string) (*DB, error) {
 			conn.Close()
 			return nil, fmt.Errorf("migrate alerts: %w", err)
 		}
+	}
+	// Restrict database file to owner-only access.
+	if err := os.Chmod(path, 0600); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("chmod database: %w", err)
 	}
 	return &DB{sql: conn}, nil
 }
@@ -200,7 +200,9 @@ func (d *DB) WriteAlert(a AlertRecord) error {
 		 ON CONFLICT(name) DO UPDATE SET
 		   message  = excluded.message,
 		   fired_at = excluded.fired_at,
-		   resolved = excluded.resolved`,
+		   resolved = excluded.resolved,
+		   resolved_at = NULL,
+		   dismissed_at = NULL`,
 		a.Name, a.Message, a.FiredAt.UnixNano(), boolToInt(a.Resolved),
 	)
 	return err

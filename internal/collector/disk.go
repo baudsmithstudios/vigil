@@ -2,6 +2,7 @@ package collector
 
 import (
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/disk"
@@ -36,7 +37,7 @@ func (d *diskCollector) collectSpace() []DiskSnapshot {
 		}
 		out = append(out, DiskSnapshot{
 			MountPoint: p.Mountpoint,
-			Device:     p.Device,
+			Device:     normalizeDeviceName(p.Device),
 			TotalBytes: usage.Total,
 			UsedBytes:  usage.Used,
 			FreeBytes:  usage.Free,
@@ -61,16 +62,57 @@ func (d *diskCollector) collectIO() []DiskIOSnapshot {
 	for name, cur := range counters {
 		snap := DiskIOSnapshot{Device: name}
 		if prev, ok := d.prev[name]; ok && elapsed > 0 {
-			if cur.ReadBytes >= prev.ReadBytes {
-				snap.ReadRate = float64(cur.ReadBytes-prev.ReadBytes) / elapsed
-			}
-			if cur.WriteBytes >= prev.WriteBytes {
-				snap.WriteRate = float64(cur.WriteBytes-prev.WriteBytes) / elapsed
-			}
+			applyDiskRates(&snap, prev, cur, elapsed)
 		}
 		out = append(out, snap)
 		d.prev[name] = cur
 	}
 	d.prevTime = now
 	return out
+}
+
+func normalizeDeviceName(device string) string {
+	if device == "" {
+		return device
+	}
+	if filepath.IsAbs(device) {
+		if resolved, err := filepath.EvalSymlinks(device); err == nil && resolved != "" {
+			device = resolved
+		}
+	}
+	return filepath.Base(device)
+}
+
+// applyDiskRates computes interval rates from cumulative disk counters.
+// Counter rollback is treated as unavailable data for the interval.
+func applyDiskRates(snap *DiskIOSnapshot, prev, curr disk.IOCountersStat, elapsed float64) {
+	if elapsed <= 0 {
+		return
+	}
+	if curr.ReadBytes >= prev.ReadBytes {
+		snap.ReadRate = float64(curr.ReadBytes-prev.ReadBytes) / elapsed
+	}
+	if curr.WriteBytes >= prev.WriteBytes {
+		snap.WriteRate = float64(curr.WriteBytes-prev.WriteBytes) / elapsed
+	}
+
+	if curr.IoTime >= prev.IoTime {
+		elapsedMs := elapsed * 1000
+		if elapsedMs > 0 {
+			util := float64(curr.IoTime-prev.IoTime) / elapsedMs * 100
+			if util > 100 {
+				util = 100
+			}
+			snap.UtilPercent = util
+		}
+	}
+
+	if curr.ReadCount >= prev.ReadCount && curr.WriteCount >= prev.WriteCount &&
+		curr.ReadTime >= prev.ReadTime && curr.WriteTime >= prev.WriteTime {
+		ops := (curr.ReadCount - prev.ReadCount) + (curr.WriteCount - prev.WriteCount)
+		if ops > 0 {
+			totalMs := (curr.ReadTime - prev.ReadTime) + (curr.WriteTime - prev.WriteTime)
+			snap.LatencyMs = float64(totalMs) / float64(ops)
+		}
+	}
 }

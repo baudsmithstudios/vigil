@@ -240,3 +240,31 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 	}
 	t.Error("expected non-zero CycleTime after Run")
 }
+
+func TestSnapshot_ReturnsCopyAndCycleTime(t *testing.T) {
+	now := time.Now()
+	sc := &ServiceChecker{
+		results: []ServiceStatus{
+			{Name: "web", CheckType: "http", Up: true, StatusCode: 200},
+		},
+		cycleTime: now,
+	}
+
+	gotResults, gotCycle := sc.Snapshot()
+	if !gotCycle.Equal(now) {
+		t.Fatalf("expected cycle time %v, got %v", now, gotCycle)
+	}
+	if len(gotResults) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(gotResults))
+	}
+	if gotResults[0].Name != "web" {
+		t.Fatalf("expected result name web, got %q", gotResults[0].Name)
+	}
+
+	// Snapshot must return a copy to avoid caller mutation of internal state.
+	gotResults[0].Name = "mutated"
+	after, _ := sc.Snapshot()
+	if after[0].Name != "web" {
+		t.Fatal("expected Snapshot to return a defensive copy")
+	}
+}

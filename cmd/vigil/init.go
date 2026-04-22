@@ -429,10 +429,20 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 			Message: fmt.Sprintf("Memory usage above %.0f%%", memThresh)},
 		{Metric: metric.DiskPercent, Threshold: diskThresh, Above: true,
 			Message: fmt.Sprintf("Disk usage above %.0f%%", diskThresh)},
+		{Metric: metric.DiskUtil, Threshold: 90.0, Above: true, SustainedTicks: 3,
+			Message: "Disk utilization above 90%"},
+		{Metric: metric.DiskLatency, Threshold: 50.0, Above: true, SustainedTicks: 3,
+			Message: "Disk latency above 50ms"},
 		{Metric: metric.SwapPercent, Threshold: 10.0, Above: true,
 			Message: "Swap usage above 10%"},
+		{Metric: metric.SwapIn, Threshold: 1.0, Above: true, SustainedTicks: 3,
+			Message: "Sustained swap-in activity"},
+		{Metric: metric.SwapOut, Threshold: 1.0, Above: true, SustainedTicks: 3,
+			Message: "Sustained swap-out activity"},
 		{Metric: metric.CPUIowait, Threshold: 10.0, Above: true, SustainedTicks: 3,
 			Message: "CPU iowait above 10%"},
+		{Metric: metric.SDErrors, Threshold: 0.0, Above: true,
+			Message: "SD card errors detected"},
 	}
 
 	if len(env.thermalZones) > 0 {

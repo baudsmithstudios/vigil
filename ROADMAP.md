@@ -1,10 +1,14 @@
 # Roadmap
 
+Last updated: April 22, 2026
+
 Vigil is an active project. Priorities and planned features may change as the project matures, and nothing in this roadmap is on a defined release schedule.
 
 This roadmap reflects current product direction, not guaranteed delivery commitments.
 
 ## Shipped
+
+### v1
 
 All v1 features have shipped:
 
@@ -19,6 +23,10 @@ All v1 features have shipped:
 - Historical data persistence (SQLite)
 - TUI/headless loop unification
 - Historical view infrastructure (disk I/O, network, service latency)
+
+### v2
+
+- Disk I/O health metrics (disk latency, disk utilization, swap in/out rate, SD/MMC error deltas)
 
 ---
 
@@ -47,15 +55,6 @@ Changing thresholds or webhook URLs currently requires a container restart.
 - Add `ntfy_topic` and optional `ntfy_server` (default `https://ntfy.sh`) to `[notifications]` config
 - Push notifications on phone with no auth required
 - Supports same quiet hours and mute toggle as existing channels
-
-### Disk I/O metrics
-
-SD card and USB storage performance degrades silently on Pis. Latency spikes and high utilization are early indicators of card wear or impending failure.
-
-- **I/O latency** — alert on sustained high disk wait times
-- **Disk utilization %** — percentage of time the device is busy
-- **Swap I/O rate** — swap in/out operations per second; sustained non-zero indicates RAM exhaustion
-- **SD card error counters** — non-zero delta is a warning
 
 ### `vigil --once --json`
 

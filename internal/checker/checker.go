@@ -18,7 +18,7 @@ type ServiceStatus struct {
 	Name       string
 	CheckType  string // "http" or "tcp"
 	Up         bool
-	StatusCode int           // HTTP only, 0 for TCP
+	StatusCode int // HTTP only, 0 for TCP
 	Latency    time.Duration
 	CheckedAt  time.Time
 	Error      string // empty when healthy
@@ -68,18 +68,23 @@ func (sc *ServiceChecker) Run(ctx context.Context) {
 
 // Results returns a snapshot of the latest check results.
 func (sc *ServiceChecker) Results() []ServiceStatus {
+	results, _ := sc.Snapshot()
+	return results
+}
+
+// Snapshot returns the latest check results and cycle completion time atomically.
+func (sc *ServiceChecker) Snapshot() ([]ServiceStatus, time.Time) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	out := make([]ServiceStatus, len(sc.results))
 	copy(out, sc.results)
-	return out
+	return out, sc.cycleTime
 }
 
 // CycleTime returns when the last check cycle completed.
 func (sc *ServiceChecker) CycleTime() time.Time {
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	return sc.cycleTime
+	_, cycle := sc.Snapshot()
+	return cycle
 }
 
 func (sc *ServiceChecker) runCycle() {
