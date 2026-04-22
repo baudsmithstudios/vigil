@@ -8,20 +8,21 @@ import (
 
 // Snapshot holds all metric readings from a single collection tick.
 type Snapshot struct {
-	Timestamp   time.Time
-	CPU         CPUSnapshot
-	Memory      MemSnapshot
-	Disks       []DiskSnapshot
-	DiskIO      []DiskIOSnapshot
-	SDErrors    []SDErrorSnapshot
-	Network     []NetSnapshot
-	Load        LoadSnapshot
-	Temperature []TempSnapshot
-	Containers  []ContainerSnapshot
-	Throttle    ThrottleSnapshot
-	Mounts      []MountStatus
-	Services    []checker.ServiceStatus
-	UptimeSec   uint64 // system uptime in seconds
+	Timestamp        time.Time
+	CPU              CPUSnapshot
+	Memory           MemSnapshot
+	Disks            []DiskSnapshot
+	DiskIO           []DiskIOSnapshot
+	SDErrors         []SDErrorSnapshot
+	Network          []NetSnapshot
+	Load             LoadSnapshot
+	Temperature      []TempSnapshot
+	Containers       []ContainerSnapshot
+	Throttle         ThrottleSnapshot
+	Mounts           []MountStatus
+	Services         []checker.ServiceStatus
+	ServiceCycleTime time.Time
+	UptimeSec        uint64 // system uptime in seconds
 }
 
 // CPUSnapshot holds per-collection CPU data.

@@ -1,12 +1,35 @@
 package main
 
 import (
+	"context"
+	"os"
 	"testing"
 	"time"
 
+	"vigil/internal/alert"
 	"vigil/internal/collector"
 	"vigil/internal/metric"
+	"vigil/internal/store"
 )
+
+func tempDB(t *testing.T) (*store.DB, func()) {
+	t.Helper()
+	f, err := os.CreateTemp("", "vigil-main-test-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	db, err := store.Open(f.Name())
+	if err != nil {
+		os.Remove(f.Name())
+		t.Fatal(err)
+	}
+	return db, func() {
+		db.Close()
+		os.Remove(f.Name())
+	}
+}
 
 func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 	snap := collector.Snapshot{
@@ -184,5 +207,63 @@ func TestSnapshotToValues_DiskIOMetricsFilteredToTrackedDevices(t *testing.T) {
 	}
 	if _, ok := values[metric.PrefixDiskUtil+"loop0"]; ok {
 		t.Fatal("unexpected untracked device loop0 in values")
+	}
+}
+
+func TestSnapshotToValues_TemperatureUsesPrefixedKey(t *testing.T) {
+	snap := collector.Snapshot{
+		Temperature: []collector.TempSnapshot{
+			{SensorKey: "cpu_thermal", Celsius: 71.5},
+		},
+	}
+	values := snapshotToValues(snap)
+
+	if got := values[metric.PrefixTemp+"cpu_thermal"]; got != 71.5 {
+		t.Fatalf("expected %s = 71.5, got %v", metric.PrefixTemp+"cpu_thermal", got)
+	}
+	if _, ok := values["cpu_thermal"]; ok {
+		t.Fatalf("did not expect unprefixed cpu_thermal key in values")
+	}
+}
+
+func TestRunLoop_FlushesOnSnapshotChannelClose(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	snapshots := make(chan collector.Snapshot, 1)
+	snapshots <- collector.Snapshot{
+		Timestamp: time.Now(),
+		Memory: collector.MemSnapshot{
+			Percent: 42.0,
+		},
+	}
+	close(snapshots)
+
+	runLoop(
+		context.Background(),
+		db,
+		snapshots,
+		alert.New(nil),
+		nil,
+		alert.NewMountHandler(),
+		alert.NewServiceHandler(2),
+		loopConfig{
+			writeBufCap:     8,
+			containerBufCap: 4,
+			flushInterval:   time.Hour,
+			purgeInterval:   time.Hour,
+			retention:       time.Hour,
+		},
+	)
+
+	readings, err := db.QueryRecent(metric.MemPercent, 1)
+	if err != nil {
+		t.Fatalf("QueryRecent: %v", err)
+	}
+	if len(readings) != 1 {
+		t.Fatalf("expected 1 reading flushed on channel close, got %d", len(readings))
+	}
+	if readings[0].Value != 42.0 {
+		t.Fatalf("expected mem_percent 42.0, got %v", readings[0].Value)
 	}
 }

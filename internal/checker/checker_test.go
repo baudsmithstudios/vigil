@@ -240,3 +240,38 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 	}
 	t.Error("expected non-zero CycleTime after Run")
 }
+
+func TestSnapshot_ReturnsResultsAndCycleTime(t *testing.T) {
+	sc := newTestChecker(nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go sc.Run(ctx)
+
+	deadline := time.Now().Add(1500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if !sc.CycleTime().IsZero() {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	results := sc.Results()
+	gotResults, gotCycle := sc.Snapshot()
+
+	if gotCycle.IsZero() {
+		t.Fatal("expected non-zero cycle time from Snapshot")
+	}
+	if len(gotResults) != len(results) {
+		t.Fatalf("expected %d results, got %d", len(results), len(gotResults))
+	}
+
+	// Ensure Snapshot returns a copy.
+	if len(gotResults) > 0 {
+		origName := gotResults[0].Name
+		gotResults[0].Name = "mutated"
+		after, _ := sc.Snapshot()
+		if after[0].Name != origName {
+			t.Fatal("expected Snapshot results to be copied, but mutation leaked")
+		}
+	}
+}

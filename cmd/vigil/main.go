@@ -141,18 +141,18 @@ func main() {
 	}
 
 	if *headless {
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler, svcChecker)
+		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
 		return
 	}
 
 	// Check if stdout is a TTY; fall back to headless if not.
 	if !isTerminal(os.Stdout) {
 		log.Println("stdout is not a TTY, running in headless mode")
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler, svcChecker)
+		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
 		return
 	}
 
-	runTUI(ctx, cancel, db, cfg, snapshots, alertEngine, restoredAlerts, notifier, mute, mountHandler, serviceHandler, svcChecker)
+	runTUI(ctx, cancel, db, cfg, snapshots, alertEngine, restoredAlerts, notifier, mute, mountHandler, serviceHandler)
 }
 
 type loopConfig struct {
@@ -178,7 +178,6 @@ func runTUI(
 	mute *notify.Mute,
 	mountHandler *alert.MountAlertHandler,
 	serviceHandler *alert.ServiceAlertHandler,
-	svcChecker *checker.ServiceChecker,
 ) {
 	model := tui.New(cfg.Theme, func(name string) {
 		if err := db.DismissAlert(name); err != nil {
@@ -208,7 +207,7 @@ func runTUI(
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, svcChecker, loopConfig{
+		runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, loopConfig{
 			writeBufCap:     4096,
 			containerBufCap: 256,
 			flushInterval:   5 * time.Minute,
@@ -246,7 +245,6 @@ func runHeadless(
 	n notify.Notifier,
 	mountHandler *alert.MountAlertHandler,
 	serviceHandler *alert.ServiceAlertHandler,
-	svcChecker *checker.ServiceChecker,
 ) {
 	throttleFiring := false
 	if persisted, err := db.ActiveAlerts(); err == nil {
@@ -258,7 +256,7 @@ func runHeadless(
 		}
 	}
 
-	runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, svcChecker, loopConfig{
+	runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, loopConfig{
 		writeBufCap:     256,
 		containerBufCap: 64,
 		flushInterval:   30 * time.Second,
@@ -276,7 +274,6 @@ func runLoop(
 	n notify.Notifier,
 	mountHandler *alert.MountAlertHandler,
 	serviceHandler *alert.ServiceAlertHandler,
-	svcChecker *checker.ServiceChecker,
 	lc loopConfig,
 ) {
 	writeBuf := make([]store.Reading, 0, lc.writeBufCap)
@@ -300,6 +297,9 @@ func runLoop(
 
 		case snap, ok := <-snapshots:
 			if !ok {
+				flushReadings(db, writeBuf)
+				flushContainerReadings(db, containerBuf)
+				flushServiceCheckReadings(db, serviceBuf)
 				return
 			}
 
@@ -308,22 +308,20 @@ func runLoop(
 			handleThrottleAlert(ctx, snap, &throttleFiring, db, lc.onAlert, n)
 			handleMountAlerts(ctx, snap, mountHandler, db, lc.onAlert, n)
 
-			if svcChecker != nil {
-				ct := svcChecker.CycleTime()
-				if ct.After(lastCycleTime) {
-					lastCycleTime = ct
-					handleServiceAlerts(ctx, snap, serviceHandler, db, lc.onAlert, n)
-					for _, s := range snap.Services {
-						serviceBuf = append(serviceBuf, store.ServiceCheckReading{
-							Name:       s.Name,
-							CheckType:  s.CheckType,
-							Up:         s.Up,
-							StatusCode: s.StatusCode,
-							LatencyMs:  s.Latency.Milliseconds(),
-							Error:      s.Error,
-							Timestamp:  s.CheckedAt,
-						})
-					}
+			ct := snap.ServiceCycleTime
+			if !ct.IsZero() && ct.After(lastCycleTime) {
+				lastCycleTime = ct
+				handleServiceAlerts(ctx, snap, serviceHandler, db, lc.onAlert, n)
+				for _, s := range snap.Services {
+					serviceBuf = append(serviceBuf, store.ServiceCheckReading{
+						Name:       s.Name,
+						CheckType:  s.CheckType,
+						Up:         s.Up,
+						StatusCode: s.StatusCode,
+						LatencyMs:  s.Latency.Milliseconds(),
+						Error:      s.Error,
+						Timestamp:  s.CheckedAt,
+					})
 				}
 			}
 
@@ -499,6 +497,10 @@ func handleServiceAlerts(
 }
 
 func snapshotToValues(snap collector.Snapshot) map[string]float64 {
+	return snapshotMetricValues(snap)
+}
+
+func snapshotMetricValues(snap collector.Snapshot) map[string]float64 {
 	v := map[string]float64{
 		metric.MemPercent:  snap.Memory.Percent,
 		metric.SwapPercent: snap.Memory.SwapPercent,
@@ -510,7 +512,10 @@ func snapshotToValues(snap collector.Snapshot) map[string]float64 {
 	}
 	if snap.CPU.Ready {
 		v[metric.CPUPercent] = snap.CPU.PercentTotal
+		v[metric.CPUUser] = snap.CPU.UserPercent
+		v[metric.CPUSystem] = snap.CPU.SystemPercent
 		v[metric.CPUIowait] = snap.CPU.IOWaitPercent
+		v[metric.CPUIdle] = snap.CPU.IdlePercent
 	}
 	for _, d := range snap.Disks {
 		v[metric.PrefixDiskPercent+d.MountPoint] = d.Percent
@@ -520,6 +525,8 @@ func snapshotToValues(snap collector.Snapshot) map[string]float64 {
 		if !isTrackedDiskDevice(d.Device, trackedDevices) {
 			continue
 		}
+		v[metric.PrefixDiskRead+d.Device] = d.ReadRate
+		v[metric.PrefixDiskWrite+d.Device] = d.WriteRate
 		v[metric.PrefixDiskUtil+d.Device] = d.UtilPercent
 		v[metric.PrefixDiskLatency+d.Device] = d.LatencyMs
 	}
@@ -527,11 +534,16 @@ func snapshotToValues(snap collector.Snapshot) map[string]float64 {
 		v[metric.PrefixSDErrors+s.Host] = float64(s.Delta)
 	}
 	for _, n := range snap.Network {
+		v[metric.PrefixNetSend+n.Interface] = n.SendRate
+		v[metric.PrefixNetRecv+n.Interface] = n.RecvRate
 		v[metric.PrefixNetDrops+n.Interface] = n.DropRate
 		v[metric.PrefixNetErrors+n.Interface] = n.ErrRate
 	}
 	for _, t := range snap.Temperature {
-		v[t.SensorKey] = t.Celsius
+		v[metric.PrefixTemp+t.SensorKey] = t.Celsius
+	}
+	if snap.Throttle.Available {
+		v[metric.ThrottleRaw] = float64(snap.Throttle.Raw)
 	}
 	return v
 }
@@ -555,62 +567,11 @@ func appendContainerReadings(buf []store.ContainerReading, snap collector.Snapsh
 
 func appendReadings(buf []store.Reading, snap collector.Snapshot) []store.Reading {
 	ts := snap.Timestamp
-	if snap.CPU.Ready {
-		buf = append(buf,
-			store.Reading{Metric: metric.CPUPercent, Value: snap.CPU.PercentTotal, Timestamp: ts},
-			store.Reading{Metric: metric.CPUUser, Value: snap.CPU.UserPercent, Timestamp: ts},
-			store.Reading{Metric: metric.CPUSystem, Value: snap.CPU.SystemPercent, Timestamp: ts},
-			store.Reading{Metric: metric.CPUIowait, Value: snap.CPU.IOWaitPercent, Timestamp: ts},
-			store.Reading{Metric: metric.CPUIdle, Value: snap.CPU.IdlePercent, Timestamp: ts},
-		)
-	}
-	buf = append(buf,
-		store.Reading{Metric: metric.MemPercent, Value: snap.Memory.Percent, Timestamp: ts},
-		store.Reading{Metric: metric.SwapPercent, Value: snap.Memory.SwapPercent, Timestamp: ts},
-		store.Reading{Metric: metric.SwapIn, Value: snap.Memory.SwapInRate, Timestamp: ts},
-		store.Reading{Metric: metric.SwapOut, Value: snap.Memory.SwapOutRate, Timestamp: ts},
-		store.Reading{Metric: metric.Load1, Value: snap.Load.Load1, Timestamp: ts},
-		store.Reading{Metric: metric.Load5, Value: snap.Load.Load5, Timestamp: ts},
-		store.Reading{Metric: metric.Load15, Value: snap.Load.Load15, Timestamp: ts},
-	)
-	for _, d := range snap.Disks {
+	for k, v := range snapshotMetricValues(snap) {
 		buf = append(buf, store.Reading{
-			Metric: metric.PrefixDiskPercent + d.MountPoint, Value: d.Percent, Timestamp: ts,
-		})
-	}
-	trackedDevices := trackedDiskDevices(snap.Disks)
-	for _, d := range snap.DiskIO {
-		if !isTrackedDiskDevice(d.Device, trackedDevices) {
-			continue
-		}
-		buf = append(buf,
-			store.Reading{Metric: metric.PrefixDiskRead + d.Device, Value: d.ReadRate, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixDiskWrite + d.Device, Value: d.WriteRate, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixDiskUtil + d.Device, Value: d.UtilPercent, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixDiskLatency + d.Device, Value: d.LatencyMs, Timestamp: ts},
-		)
-	}
-	for _, s := range snap.SDErrors {
-		buf = append(buf, store.Reading{
-			Metric: metric.PrefixSDErrors + s.Host, Value: float64(s.Delta), Timestamp: ts,
-		})
-	}
-	for _, n := range snap.Network {
-		buf = append(buf,
-			store.Reading{Metric: metric.PrefixNetSend + n.Interface, Value: n.SendRate, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixNetRecv + n.Interface, Value: n.RecvRate, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixNetDrops + n.Interface, Value: n.DropRate, Timestamp: ts},
-			store.Reading{Metric: metric.PrefixNetErrors + n.Interface, Value: n.ErrRate, Timestamp: ts},
-		)
-	}
-	for _, t := range snap.Temperature {
-		buf = append(buf, store.Reading{
-			Metric: metric.PrefixTemp + t.SensorKey, Value: t.Celsius, Timestamp: ts,
-		})
-	}
-	if snap.Throttle.Available {
-		buf = append(buf, store.Reading{
-			Metric: metric.ThrottleRaw, Value: float64(snap.Throttle.Raw), Timestamp: ts,
+			Metric:    k,
+			Value:     v,
+			Timestamp: ts,
 		})
 	}
 	return buf

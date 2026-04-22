@@ -94,7 +94,7 @@ SD/MMC error counters come from `/sys/kernel/debug/mmc*/err_stats` when availabl
 | `disk_latency_ms` | Average disk I/O latency in ms (all devices, prefix match) |
 | `sd_errors` | SD/MMC error counter delta (all hosts, prefix match) |
 | `load1` / `load5` / `load15` | Load averages |
-| `cpu_thermal` | CPU temperature in degrees C |
+| `temp` | Temperature in degrees C (all sensors, prefix match) |
 | `net_drops` | Network packet drops/sec (all interfaces, prefix match) |
 | `net_errors` | Network errors/sec (all interfaces, prefix match) |
 | `mount_missing:<path>` | Mount disappeared (after 3-tick debounce) |

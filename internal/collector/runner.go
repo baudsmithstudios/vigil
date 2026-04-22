@@ -94,7 +94,7 @@ func (r *Runner) Run(ctx context.Context) {
 				snap.Mounts = r.mount.collect()
 			}
 			if r.services != nil {
-				snap.Services = r.services.Results()
+				snap.Services, snap.ServiceCycleTime = r.services.Snapshot()
 			}
 			select {
 			case r.out <- snap:
