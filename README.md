@@ -111,7 +111,7 @@ All fields are optional — Vigil runs zero-config with sane defaults. Generate 
 | `interval` | `2s` | Collection interval |
 | `retention` | `12h` | Reading retention before purge |
 | `theme` | `auto` | Color theme: `auto`, `dark`, or `light` |
-| `[[alerts]]` | CPU/disk at 85%, mem at 90% | Threshold alert rules |
+| `[[alerts]]` | CPU/mem/disk at 90% (zero-config) | Threshold alert rules |
 | `[notifications]` | _(disabled)_ | Discord/webhook delivery |
 | `[docker]` | _(disabled)_ | Container monitoring |
 | `[[mount_checks]]` | _(disabled)_ | Mount presence monitoring |
@@ -132,6 +132,7 @@ sustained_ticks = 3               # optional: require 3 consecutive ticks before
 ```
 
 Rules support `threshold`, `delta_threshold`, or both. Threshold alerts fire when a value crosses a sustained level. Delta alerts fire on sudden spikes and auto-resolve when the rate of change drops. `sustained_ticks` delays firing until the condition persists for N consecutive collection ticks — useful for noisy metrics like network drops where a single blip isn't actionable.
+`vigil init` writes a Pi-focused starter set that also includes swap activity, CPU iowait, disk utilization/latency, and SD/MMC error alerts.
 
 ### Notifications
 
