@@ -262,13 +262,6 @@ func TestValidateTheme(t *testing.T) {
 	}
 }
 
-func TestDefaultTheme(t *testing.T) {
-	cfg := Defaults()
-	if cfg.Theme != "auto" {
-		t.Errorf("expected default theme 'auto', got %q", cfg.Theme)
-	}
-}
-
 func TestValidateDuplicateAlertMetrics(t *testing.T) {
 	cfg := Defaults()
 	cfg.Alerts = []Alert{

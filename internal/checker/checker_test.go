@@ -241,37 +241,30 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 	t.Error("expected non-zero CycleTime after Run")
 }
 
-func TestSnapshot_ReturnsResultsAndCycleTime(t *testing.T) {
-	sc := newTestChecker(nil, nil)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	deadline := time.Now().Add(1500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if !sc.CycleTime().IsZero() {
-			break
-		}
-		time.Sleep(25 * time.Millisecond)
+func TestSnapshot_ReturnsCopyAndCycleTime(t *testing.T) {
+	now := time.Now()
+	sc := &ServiceChecker{
+		results: []ServiceStatus{
+			{Name: "web", CheckType: "http", Up: true, StatusCode: 200},
+		},
+		cycleTime: now,
 	}
 
-	results := sc.Results()
 	gotResults, gotCycle := sc.Snapshot()
-
-	if gotCycle.IsZero() {
-		t.Fatal("expected non-zero cycle time from Snapshot")
+	if !gotCycle.Equal(now) {
+		t.Fatalf("expected cycle time %v, got %v", now, gotCycle)
 	}
-	if len(gotResults) != len(results) {
-		t.Fatalf("expected %d results, got %d", len(results), len(gotResults))
+	if len(gotResults) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(gotResults))
+	}
+	if gotResults[0].Name != "web" {
+		t.Fatalf("expected result name web, got %q", gotResults[0].Name)
 	}
 
-	// Ensure Snapshot returns a copy.
-	if len(gotResults) > 0 {
-		origName := gotResults[0].Name
-		gotResults[0].Name = "mutated"
-		after, _ := sc.Snapshot()
-		if after[0].Name != origName {
-			t.Fatal("expected Snapshot results to be copied, but mutation leaked")
-		}
+	// Snapshot must return a copy to avoid caller mutation of internal state.
+	gotResults[0].Name = "mutated"
+	after, _ := sc.Snapshot()
+	if after[0].Name != "web" {
+		t.Fatal("expected Snapshot to return a defensive copy")
 	}
 }
