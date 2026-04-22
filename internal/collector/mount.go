@@ -85,8 +85,27 @@ func parseProcMounts(data []byte) map[string]bool {
 	for _, line := range bytes.Split(data, []byte("\n")) {
 		fields := bytes.Fields(line)
 		if len(fields) >= 2 {
-			mounts[string(fields[1])] = true
+			mounts[decodeProcMountField(string(fields[1]))] = true
 		}
 	}
 	return mounts
+}
+
+func decodeProcMountField(in string) string {
+	out := make([]byte, 0, len(in))
+	for i := 0; i < len(in); i++ {
+		if in[i] != '\\' || i+3 >= len(in) {
+			out = append(out, in[i])
+			continue
+		}
+		a, b, c := in[i+1], in[i+2], in[i+3]
+		if a < '0' || a > '7' || b < '0' || b > '7' || c < '0' || c > '7' {
+			out = append(out, in[i])
+			continue
+		}
+		decoded := (a-'0')*64 + (b-'0')*8 + (c - '0')
+		out = append(out, decoded)
+		i += 3
+	}
+	return string(out)
 }
