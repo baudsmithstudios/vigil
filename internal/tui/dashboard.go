@@ -305,8 +305,9 @@ func renderDiskContent(disks []collector.DiskSnapshot, io []collector.DiskIOSnap
 			formatBytes(d.UsedBytes), formatBytes(d.TotalBytes),
 			formatRate(ioSnap.ReadRate), formatRate(ioSnap.WriteRate))))
 		sb.WriteString("\n")
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("  util %4.0f%%  await %5.1fms",
-			ioSnap.UtilPercent, ioSnap.LatencyMs)))
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("   util %4.0f%%", ioSnap.UtilPercent)))
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("   await %5.1fms", ioSnap.LatencyMs)))
 		sb.WriteString("\n")
 	}
 	return sb.String()

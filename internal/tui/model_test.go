@@ -142,8 +142,8 @@ func TestRenderDiskContent_UsesParentDeviceIO(t *testing.T) {
 		60,
 	)
 
-	if !strings.Contains(content, "util   77%  await   4.2ms") {
-		t.Fatalf("expected parent-device util/await fallback in output, got:\n%s", content)
+	if !strings.Contains(content, " util   77%\n await   4.2ms") {
+		t.Fatalf("expected parent-device util/await fallback on separate lines, got:\n%s", content)
 	}
 }
 
