@@ -10,14 +10,19 @@ import (
 
 // Runner polls all metrics on a fixed interval and emits Snapshots.
 type Runner struct {
-	interval time.Duration
-	cpu      *cpuCollector
-	disk     *diskCollector
-	net      *netCollector
-	docker   *dockerCollector         // nil if Docker monitoring is disabled
-	mount    *mountCollector
-	services *checker.ServiceChecker  // nil if no checks configured
-	out      chan Snapshot
+	interval    time.Duration
+	cpu         *cpuCollector
+	disk        *diskCollector
+	net         *netCollector
+	sd          *sdErrorCollector
+	docker      *dockerCollector // nil if Docker monitoring is disabled
+	mount       *mountCollector
+	services    *checker.ServiceChecker // nil if no checks configured
+	prevSwapIn  uint64
+	prevSwapOut uint64
+	prevSwapAt  time.Time
+	swapReady   bool
+	out         chan Snapshot
 }
 
 // New creates a Runner that emits snapshots on the returned channel.
@@ -31,6 +36,7 @@ func New(interval time.Duration, dockerSocket string, mountChecks []config.Mount
 		cpu:      newCPUCollector(),
 		disk:     newDiskCollector(),
 		net:      newNetCollector(),
+		sd:       newSDErrorCollector(),
 		services: services,
 		out:      ch,
 	}
@@ -54,12 +60,27 @@ func (r *Runner) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case t := <-ticker.C:
+			mem := collectMemory()
+			if mem.SwapReady {
+				if r.swapReady {
+					elapsed := t.Sub(r.prevSwapAt).Seconds()
+					mem.SwapInRate, mem.SwapOutRate = applySwapRates(
+						r.prevSwapIn, r.prevSwapOut, mem.SwapInBytes, mem.SwapOutBytes, elapsed,
+					)
+				}
+				r.prevSwapIn = mem.SwapInBytes
+				r.prevSwapOut = mem.SwapOutBytes
+				r.prevSwapAt = t
+				r.swapReady = true
+			}
+
 			snap := Snapshot{
 				Timestamp:   t,
 				CPU:         r.cpu.collect(),
-				Memory:      collectMemory(),
+				Memory:      mem,
 				Disks:       r.disk.collectSpace(),
 				DiskIO:      r.disk.collectIO(),
+				SDErrors:    r.sd.collect(),
 				Network:     r.net.collect(),
 				Load:        collectLoad(),
 				Temperature: collectTemperature(),

@@ -502,6 +502,8 @@ func snapshotToValues(snap collector.Snapshot) map[string]float64 {
 	v := map[string]float64{
 		metric.MemPercent:  snap.Memory.Percent,
 		metric.SwapPercent: snap.Memory.SwapPercent,
+		metric.SwapIn:      snap.Memory.SwapInRate,
+		metric.SwapOut:     snap.Memory.SwapOutRate,
 		metric.Load1:       snap.Load.Load1,
 		metric.Load5:       snap.Load.Load5,
 		metric.Load15:      snap.Load.Load15,
@@ -512,6 +514,17 @@ func snapshotToValues(snap collector.Snapshot) map[string]float64 {
 	}
 	for _, d := range snap.Disks {
 		v[metric.PrefixDiskPercent+d.MountPoint] = d.Percent
+	}
+	trackedDevices := trackedDiskDevices(snap.Disks)
+	for _, d := range snap.DiskIO {
+		if !isTrackedDiskDevice(d.Device, trackedDevices) {
+			continue
+		}
+		v[metric.PrefixDiskUtil+d.Device] = d.UtilPercent
+		v[metric.PrefixDiskLatency+d.Device] = d.LatencyMs
+	}
+	for _, s := range snap.SDErrors {
+		v[metric.PrefixSDErrors+s.Host] = float64(s.Delta)
 	}
 	for _, n := range snap.Network {
 		v[metric.PrefixNetDrops+n.Interface] = n.DropRate
@@ -554,6 +567,8 @@ func appendReadings(buf []store.Reading, snap collector.Snapshot) []store.Readin
 	buf = append(buf,
 		store.Reading{Metric: metric.MemPercent, Value: snap.Memory.Percent, Timestamp: ts},
 		store.Reading{Metric: metric.SwapPercent, Value: snap.Memory.SwapPercent, Timestamp: ts},
+		store.Reading{Metric: metric.SwapIn, Value: snap.Memory.SwapInRate, Timestamp: ts},
+		store.Reading{Metric: metric.SwapOut, Value: snap.Memory.SwapOutRate, Timestamp: ts},
 		store.Reading{Metric: metric.Load1, Value: snap.Load.Load1, Timestamp: ts},
 		store.Reading{Metric: metric.Load5, Value: snap.Load.Load5, Timestamp: ts},
 		store.Reading{Metric: metric.Load15, Value: snap.Load.Load15, Timestamp: ts},
@@ -563,11 +578,22 @@ func appendReadings(buf []store.Reading, snap collector.Snapshot) []store.Readin
 			Metric: metric.PrefixDiskPercent + d.MountPoint, Value: d.Percent, Timestamp: ts,
 		})
 	}
+	trackedDevices := trackedDiskDevices(snap.Disks)
 	for _, d := range snap.DiskIO {
+		if !isTrackedDiskDevice(d.Device, trackedDevices) {
+			continue
+		}
 		buf = append(buf,
 			store.Reading{Metric: metric.PrefixDiskRead + d.Device, Value: d.ReadRate, Timestamp: ts},
 			store.Reading{Metric: metric.PrefixDiskWrite + d.Device, Value: d.WriteRate, Timestamp: ts},
+			store.Reading{Metric: metric.PrefixDiskUtil + d.Device, Value: d.UtilPercent, Timestamp: ts},
+			store.Reading{Metric: metric.PrefixDiskLatency + d.Device, Value: d.LatencyMs, Timestamp: ts},
 		)
+	}
+	for _, s := range snap.SDErrors {
+		buf = append(buf, store.Reading{
+			Metric: metric.PrefixSDErrors + s.Host, Value: float64(s.Delta), Timestamp: ts,
+		})
 	}
 	for _, n := range snap.Network {
 		buf = append(buf,
@@ -588,6 +614,34 @@ func appendReadings(buf []store.Reading, snap collector.Snapshot) []store.Readin
 		})
 	}
 	return buf
+}
+
+func trackedDiskDevices(disks []collector.DiskSnapshot) map[string]struct{} {
+	out := make(map[string]struct{}, len(disks)*2)
+	for _, d := range disks {
+		if d.Device == "" {
+			continue
+		}
+		out[d.Device] = struct{}{}
+		if parent := collector.ParentBlockDevice(d.Device); parent != "" {
+			out[parent] = struct{}{}
+		}
+	}
+	return out
+}
+
+func isTrackedDiskDevice(device string, tracked map[string]struct{}) bool {
+	if len(tracked) == 0 {
+		return false
+	}
+	if _, ok := tracked[device]; ok {
+		return true
+	}
+	if parent := collector.ParentBlockDevice(device); parent != "" {
+		_, ok := tracked[parent]
+		return ok
+	}
+	return false
 }
 
 func flushReadings(db *store.DB, buf []store.Reading) {

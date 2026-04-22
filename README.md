@@ -68,15 +68,17 @@ The flow covers database path, mount detection, alert thresholds, and optional f
 |---|---|
 | **CPU** | Total %, per-core %, user/system/iowait/idle breakdown |
 | **Load** | 1, 5, 15-minute averages |
-| **Memory** | Used %, used/total, cached, buffers, swap |
-| **Disk** | Used % per mount, read/write throughput per device |
+| **Memory** | Used %, used/total, cached, buffers, swap, swap in/out rate |
+| **Disk** | Used % per mount, read/write throughput per device, utilization %, avg I/O latency |
 | **Network** | Send/recv rates per interface, error and drop rates |
 | **Temperature** | All thermal sensors; Pi fallback via `/sys/class/thermal` |
+| **SD card** | MMC error counter deltas (best-effort from debugfs) |
 | **Containers** | Name, status, CPU %, memory used/limit per container (opt-in) |
 | **Mounts** | Presence check per configured mount point, flap detection (opt-in) |
 | **Services** | HTTP response status/latency and TCP port reachability (opt-in) |
 
 Virtual filesystems (tmpfs, overlay, squashfs) and Docker network interfaces (veth, br-, docker*) are filtered out.
+SD/MMC error counters come from `/sys/kernel/debug/mmc*/err_stats` when available. On hardened/non-root deployments this may be unavailable; Vigil logs a warning once and continues.
 
 ### Alert Metric Keys
 
@@ -86,7 +88,11 @@ Virtual filesystems (tmpfs, overlay, squashfs) and Docker network interfaces (ve
 | `cpu_iowait` | CPU iowait % |
 | `mem_percent` | RAM used % |
 | `swap_percent` | Swap used % |
+| `swap_in` / `swap_out` | Swap I/O rate in bytes/sec |
 | `disk_percent` | Disk used % (all partitions, prefix match) |
+| `disk_util` | Disk utilization % (all devices, prefix match) |
+| `disk_latency_ms` | Average disk I/O latency in ms (all devices, prefix match) |
+| `sd_errors` | SD/MMC error counter delta (all hosts, prefix match) |
 | `load1` / `load5` / `load15` | Load averages |
 | `cpu_thermal` | CPU temperature in degrees C |
 | `net_drops` | Network packet drops/sec (all interfaces, prefix match) |

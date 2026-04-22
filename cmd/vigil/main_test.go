@@ -87,3 +87,102 @@ func TestAppendReadings_NetworkMetrics(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotToValues_DiskIOMetrics(t *testing.T) {
+	snap := collector.Snapshot{
+		Disks: []collector.DiskSnapshot{
+			{MountPoint: "/", Device: "mmcblk0p2"},
+		},
+		DiskIO: []collector.DiskIOSnapshot{
+			{Device: "mmcblk0", UtilPercent: 92.5, LatencyMs: 34.0},
+		},
+		Memory: collector.MemSnapshot{
+			SwapInRate:  512.0,
+			SwapOutRate: 1024.0,
+		},
+		SDErrors: []collector.SDErrorSnapshot{
+			{Host: "mmc0", Delta: 3},
+		},
+	}
+	values := snapshotToValues(snap)
+
+	if got := values[metric.PrefixDiskUtil+"mmcblk0"]; got != 92.5 {
+		t.Errorf("expected disk_util:mmcblk0 = 92.5, got %v", got)
+	}
+	if got := values[metric.PrefixDiskLatency+"mmcblk0"]; got != 34.0 {
+		t.Errorf("expected disk_latency_ms:mmcblk0 = 34.0, got %v", got)
+	}
+	if got := values[metric.SwapIn]; got != 512.0 {
+		t.Errorf("expected swap_in = 512.0, got %v", got)
+	}
+	if got := values[metric.SwapOut]; got != 1024.0 {
+		t.Errorf("expected swap_out = 1024.0, got %v", got)
+	}
+	if got := values[metric.PrefixSDErrors+"mmc0"]; got != 3.0 {
+		t.Errorf("expected sd_errors:mmc0 = 3.0, got %v", got)
+	}
+}
+
+func TestAppendReadings_DiskIOMetrics(t *testing.T) {
+	ts := time.Now()
+	snap := collector.Snapshot{
+		Timestamp: ts,
+		Disks: []collector.DiskSnapshot{
+			{MountPoint: "/", Device: "mmcblk0p2"},
+		},
+		DiskIO: []collector.DiskIOSnapshot{
+			{Device: "mmcblk0", ReadRate: 4096.0, WriteRate: 8192.0, UtilPercent: 88.0, LatencyMs: 12.5},
+		},
+		Memory: collector.MemSnapshot{
+			SwapInRate:  64.0,
+			SwapOutRate: 32.0,
+		},
+		SDErrors: []collector.SDErrorSnapshot{
+			{Host: "mmc0", Delta: 1},
+		},
+	}
+	buf := appendReadings(nil, snap)
+
+	want := map[string]float64{
+		metric.PrefixDiskRead + "mmcblk0":    4096.0,
+		metric.PrefixDiskWrite + "mmcblk0":   8192.0,
+		metric.PrefixDiskUtil + "mmcblk0":    88.0,
+		metric.PrefixDiskLatency + "mmcblk0": 12.5,
+		metric.SwapIn:                        64.0,
+		metric.SwapOut:                       32.0,
+		metric.PrefixSDErrors + "mmc0":       1.0,
+	}
+	found := make(map[string]float64)
+	for _, r := range buf {
+		if _, ok := want[r.Metric]; ok {
+			found[r.Metric] = r.Value
+		}
+	}
+	for k, v := range want {
+		if got, ok := found[k]; !ok {
+			t.Errorf("missing metric %q", k)
+		} else if got != v {
+			t.Errorf("metric %q: expected %.1f, got %.1f", k, v, got)
+		}
+	}
+}
+
+func TestSnapshotToValues_DiskIOMetricsFilteredToTrackedDevices(t *testing.T) {
+	snap := collector.Snapshot{
+		Disks: []collector.DiskSnapshot{
+			{MountPoint: "/", Device: "mmcblk0p2"},
+		},
+		DiskIO: []collector.DiskIOSnapshot{
+			{Device: "mmcblk0", UtilPercent: 10.0, LatencyMs: 1.0},
+			{Device: "loop0", UtilPercent: 99.0, LatencyMs: 99.0},
+		},
+	}
+	values := snapshotToValues(snap)
+
+	if _, ok := values[metric.PrefixDiskUtil+"mmcblk0"]; !ok {
+		t.Fatal("expected tracked device mmcblk0 in values")
+	}
+	if _, ok := values[metric.PrefixDiskUtil+"loop0"]; ok {
+		t.Fatal("unexpected untracked device loop0 in values")
+	}
+}

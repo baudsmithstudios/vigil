@@ -30,6 +30,9 @@ func collectMemory() MemSnapshot {
 	snap.SwapTotalBytes = s.Total
 	snap.SwapUsedBytes = s.Used
 	snap.SwapPercent = s.UsedPercent
+	snap.SwapReady = true
+	snap.SwapInBytes = s.Sin
+	snap.SwapOutBytes = s.Sout
 
 	return snap
 }

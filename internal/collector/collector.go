@@ -13,6 +13,7 @@ type Snapshot struct {
 	Memory      MemSnapshot
 	Disks       []DiskSnapshot
 	DiskIO      []DiskIOSnapshot
+	SDErrors    []SDErrorSnapshot
 	Network     []NetSnapshot
 	Load        LoadSnapshot
 	Temperature []TempSnapshot
@@ -47,6 +48,11 @@ type MemSnapshot struct {
 	SwapTotalBytes uint64
 	SwapUsedBytes  uint64
 	SwapPercent    float64
+	SwapReady      bool
+	SwapInBytes    uint64 // cumulative bytes swapped in since boot
+	SwapOutBytes   uint64 // cumulative bytes swapped out since boot
+	SwapInRate     float64
+	SwapOutRate    float64
 }
 
 // DiskSnapshot holds per-partition disk space data.
@@ -61,9 +67,17 @@ type DiskSnapshot struct {
 
 // DiskIOSnapshot holds per-device disk I/O throughput.
 type DiskIOSnapshot struct {
-	Device    string
-	ReadRate  float64 // bytes/sec since last tick (zero on first tick)
-	WriteRate float64
+	Device      string
+	ReadRate    float64 // bytes/sec since last tick (zero on first tick)
+	WriteRate   float64
+	UtilPercent float64 // percentage of wall time device was busy
+	LatencyMs   float64 // average latency per completed IO over interval
+}
+
+// SDErrorSnapshot holds per-host SD/MMC error deltas.
+type SDErrorSnapshot struct {
+	Host  string
+	Delta uint64 // count delta since previous tick
 }
 
 // NetSnapshot holds per-interface network counters.

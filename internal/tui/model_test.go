@@ -131,6 +131,22 @@ func TestModel_HelpSwallowsKeys(t *testing.T) {
 	}
 }
 
+func TestRenderDiskContent_UsesParentDeviceIO(t *testing.T) {
+	content := renderDiskContent(
+		[]collector.DiskSnapshot{
+			{MountPoint: "/", Device: "mmcblk0p2", UsedBytes: 1024, TotalBytes: 2048, Percent: 50},
+		},
+		[]collector.DiskIOSnapshot{
+			{Device: "mmcblk0", ReadRate: 4096, WriteRate: 2048, UtilPercent: 77, LatencyMs: 4.2},
+		},
+		60,
+	)
+
+	if !strings.Contains(content, "util   77%  await   4.2ms") {
+		t.Fatalf("expected parent-device util/await fallback in output, got:\n%s", content)
+	}
+}
+
 func TestModel_QuitWorksWithHelp(t *testing.T) {
 	m := New("dark", nil, nil)
 	m.showHelp = true

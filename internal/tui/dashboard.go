@@ -269,6 +269,8 @@ func renderMemContent(mem collector.MemSnapshot, innerW int) string {
 		sb.WriteString(unitStyle.Render("%\n"))
 		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s\n",
 			formatBytes(mem.SwapUsedBytes), formatBytes(mem.SwapTotalBytes))))
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  in %s  out %s\n",
+			formatRate(mem.SwapInRate), formatRate(mem.SwapOutRate))))
 	}
 
 	return sb.String()
@@ -293,10 +295,18 @@ func renderDiskContent(disks []collector.DiskSnapshot, io []collector.DiskIOSnap
 		sb.WriteString(renderGauge(d.Percent, gaugeW))
 		sb.WriteString(valueStyle.Render(fmt.Sprintf(" %5.1f", d.Percent)))
 		sb.WriteString(unitStyle.Render("%\n"))
-		ioSnap := ioByDevice[d.Device] // zero value (0 rates) if device not tracked
+		ioSnap, ok := ioByDevice[d.Device]
+		if !ok {
+			if parent := collector.ParentBlockDevice(d.Device); parent != "" {
+				ioSnap = ioByDevice[parent]
+			}
+		}
 		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s  r %s  w %s",
 			formatBytes(d.UsedBytes), formatBytes(d.TotalBytes),
 			formatRate(ioSnap.ReadRate), formatRate(ioSnap.WriteRate))))
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  util %4.0f%%  await %5.1fms",
+			ioSnap.UtilPercent, ioSnap.LatencyMs)))
 		sb.WriteString("\n")
 	}
 	return sb.String()
@@ -546,4 +556,3 @@ func truncate(s string, n int) string {
 	}
 	return s[:n-1] + "…"
 }
-
