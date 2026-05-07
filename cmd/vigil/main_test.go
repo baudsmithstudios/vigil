@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +14,6 @@ import (
 	"vigil/internal/collector"
 	"vigil/internal/config"
 	"vigil/internal/metric"
-	"vigil/internal/notify"
 	"vigil/internal/store"
 )
 
@@ -56,10 +59,28 @@ func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 	}
 }
 
-func TestBuildNotifierIncludesNtfy(t *testing.T) {
+func TestBuildNotifierSendsNtfyNotification(t *testing.T) {
+	var gotPath, gotBody string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = srv.Client().Transport
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
+
 	notifier, mute, err := buildNotifier(config.Notifications{
 		NtfyTopic:  "vigil-alerts",
-		NtfyServer: "https://ntfy.example.com",
+		NtfyServer: srv.URL,
 	})
 	if err != nil {
 		t.Fatalf("buildNotifier() error = %v", err)
@@ -67,23 +88,22 @@ func TestBuildNotifierIncludesNtfy(t *testing.T) {
 	if mute == nil {
 		t.Fatal("expected mute toggle")
 	}
-	quiet, ok := notifier.(notify.Quiet)
-	if !ok {
-		t.Fatalf("notifier = %T, want notify.Quiet", notifier)
+	if notifier == nil {
+		t.Fatal("expected notifier")
 	}
-	multi, ok := quiet.Inner.(notify.Multi)
-	if !ok {
-		t.Fatalf("inner notifier = %T, want notify.Multi", quiet.Inner)
+	err = notifier.Send(context.Background(), alert.State{
+		Name:    "cpu_percent",
+		Message: "CPU usage above 90%",
+		FiredAt: time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC),
+	}, false)
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
 	}
-	if len(multi) != 1 {
-		t.Fatalf("expected 1 notifier, got %d", len(multi))
+	if gotPath != "/vigil-alerts" {
+		t.Fatalf("expected request path /vigil-alerts, got %q", gotPath)
 	}
-	ntfy, ok := multi[0].(notify.Ntfy)
-	if !ok {
-		t.Fatalf("inner notifier = %T, want notify.Ntfy", multi[0])
-	}
-	if ntfy.Topic != "vigil-alerts" || ntfy.Server != "https://ntfy.example.com" {
-		t.Errorf("unexpected ntfy config: %+v", ntfy)
+	if !strings.Contains(gotBody, "cpu_percent") {
+		t.Fatalf("expected ntfy body to include alert name, got %q", gotBody)
 	}
 }
 

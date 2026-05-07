@@ -122,8 +122,12 @@ func TestHTTPCheck_DefaultExpectedStatus(t *testing.T) {
 }
 
 func TestHTTPCheck_ConnectionRefused(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
 	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "dead", URL: "http://127.0.0.1:1", ExpectedStatus: 200}},
+		[]config.HTTPCheck{{Name: "dead", URL: url, ExpectedStatus: 200}},
 		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -173,9 +177,10 @@ func TestTCPCheck_Success(t *testing.T) {
 }
 
 func TestTCPCheck_ConnectionRefused(t *testing.T) {
+	port := closedTCPPort(t)
 	sc := newTestChecker(
 		nil,
-		[]config.PortCheck{{Name: "dead-port", Host: "127.0.0.1", Port: 1}},
+		[]config.PortCheck{{Name: "dead-port", Host: "127.0.0.1", Port: port}},
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -218,8 +223,12 @@ func TestTCPCheck_IPv6(t *testing.T) {
 }
 
 func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
 	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "dummy", URL: "http://127.0.0.1:1", ExpectedStatus: 200}},
+		[]config.HTTPCheck{{Name: "dummy", URL: url, ExpectedStatus: 200}},
 		nil,
 	)
 
@@ -239,6 +248,26 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Error("expected non-zero CycleTime after Run")
+}
+
+func closedTCPPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, portStr, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		ln.Close()
+		t.Fatal(err)
+	}
+	ln.Close()
+
+	var port int
+	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+		t.Fatal(err)
+	}
+	return port
 }
 
 func TestSnapshot_ReturnsCopyAndCycleTime(t *testing.T) {
