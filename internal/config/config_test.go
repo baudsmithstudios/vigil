@@ -95,6 +95,48 @@ path = "/media/usb0"
 	}
 }
 
+func TestLoadNotificationsNtfyDefaultServer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+[notifications]
+ntfy_topic = "vigil-alerts"
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Notifications.NtfyTopic != "vigil-alerts" {
+		t.Errorf("expected ntfy topic, got %q", cfg.Notifications.NtfyTopic)
+	}
+	if cfg.Notifications.NtfyServer != "https://ntfy.sh" {
+		t.Errorf("expected default ntfy server, got %q", cfg.Notifications.NtfyServer)
+	}
+}
+
+func TestLoadNotificationsNtfyCustomServer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+[notifications]
+ntfy_topic = "vigil-alerts"
+ntfy_server = "https://ntfy.example.com"
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Notifications.NtfyServer != "https://ntfy.example.com" {
+		t.Errorf("expected custom ntfy server, got %q", cfg.Notifications.NtfyServer)
+	}
+}
+
 func TestValidateHTTPChecks(t *testing.T) {
 	tests := []struct {
 		name    string

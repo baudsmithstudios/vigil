@@ -11,6 +11,8 @@ import (
 	"vigil/internal/metric"
 )
 
+const DefaultNtfyServer = "https://ntfy.sh"
+
 // Alert defines a threshold-based alert rule.
 type Alert struct {
 	Metric         string  `toml:"metric"`
@@ -25,6 +27,8 @@ type Alert struct {
 type Notifications struct {
 	DiscordWebhook string   `toml:"discord_webhook"` // Discord webhook URL
 	WebhookURL     string   `toml:"webhook_url"`     // Generic webhook URL (POST JSON)
+	NtfyTopic      string   `toml:"ntfy_topic"`      // ntfy topic name
+	NtfyServer     string   `toml:"ntfy_server"`     // ntfy server URL
 	QuietHours     []string `toml:"quiet_hours"`     // e.g. ["02:00-06:00", "12:00-13:00"]
 }
 
@@ -97,6 +101,9 @@ func Defaults() Config {
 		Interval:  duration{2 * time.Second},
 		Retention: duration{12 * time.Hour},
 		Theme:     "auto",
+		Notifications: Notifications{
+			NtfyServer: DefaultNtfyServer,
+		},
 		Services: Services{
 			Interval:            duration{30 * time.Second},
 			FailuresBeforeAlert: 2,
@@ -136,6 +143,18 @@ func (c Config) validate() error {
 	}
 	if c.Retention.Duration <= 0 {
 		return fmt.Errorf("retention must be positive, got %s", c.Retention.Duration)
+	}
+	if c.Notifications.NtfyTopic != "" {
+		if c.Notifications.NtfyServer == "" {
+			return fmt.Errorf("notifications.ntfy_server must not be empty when ntfy_topic is set")
+		}
+		u, err := url.Parse(c.Notifications.NtfyServer)
+		if err != nil || u.Host == "" {
+			return fmt.Errorf("notifications.ntfy_server: invalid url %q", c.Notifications.NtfyServer)
+		}
+		if u.Scheme != "https" {
+			return fmt.Errorf("notifications.ntfy_server: url scheme must be https, got %q", u.Scheme)
+		}
 	}
 	if s := c.Docker.Socket; s != "" {
 		if !filepath.IsAbs(s) {

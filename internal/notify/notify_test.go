@@ -3,6 +3,9 @@ package notify
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -58,4 +61,43 @@ func TestMultiSendReturnsErrors(t *testing.T) {
 			t.Fatalf("expected both errors, got %q", err.Error())
 		}
 	})
+}
+
+func TestNtfySendPostsMessageToTopic(t *testing.T) {
+	var gotMethod, gotPath, gotTitle, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotTitle = r.Header.Get("Title")
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	n := Ntfy{Server: srv.URL, Topic: "vigil-alerts"}
+	a := alert.State{
+		Name:    "cpu_percent",
+		Message: "CPU usage above 90%",
+		FiredAt: time.Date(2026, 5, 6, 14, 15, 16, 0, time.UTC),
+	}
+
+	if err := n.Send(context.Background(), a, false); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %s, want %s", gotMethod, http.MethodPost)
+	}
+	if gotPath != "/vigil-alerts" {
+		t.Errorf("path = %q, want /vigil-alerts", gotPath)
+	}
+	if gotTitle != "Vigil alert" {
+		t.Errorf("Title header = %q, want Vigil alert", gotTitle)
+	}
+	if !strings.Contains(gotBody, "cpu_percent") || !strings.Contains(gotBody, "CPU usage above 90%") {
+		t.Errorf("body = %q, want alert name and message", gotBody)
+	}
 }

@@ -69,6 +69,8 @@ type initConfig struct {
 	dockerSocket   string
 	discordWebhook string
 	webhookURL     string
+	ntfyTopic      string
+	ntfyServer     string
 	quietHours     []string
 	mounts         []config.MountCheck
 	alerts         []config.Alert
@@ -116,8 +118,8 @@ func parseToggleInput(input string, count int) map[int]bool {
 	return toggled
 }
 
-// promptNotifications collects optional Discord/webhook URLs and quiet hours.
-func promptNotifications(scanner *bufio.Scanner) (discord, webhook string, quietHours []string) {
+// promptNotifications collects optional notification destinations and quiet hours.
+func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, ntfyServer string, quietHours []string) {
 	fmt.Print("Discord webhook URL (empty to skip): ")
 	if scanner.Scan() {
 		discord = strings.TrimSpace(scanner.Text())
@@ -140,7 +142,20 @@ func promptNotifications(scanner *bufio.Scanner) (discord, webhook string, quiet
 		}
 	}
 
-	if discord != "" || webhook != "" {
+	fmt.Print("ntfy topic (empty to skip): ")
+	if scanner.Scan() {
+		ntfyTopic = strings.TrimSpace(scanner.Text())
+	}
+	if ntfyTopic != "" {
+		ntfyServer = prompt(scanner, "ntfy server", config.DefaultNtfyServer)
+		if err := notify.ValidateServerURL(ntfyServer); err != nil {
+			fmt.Printf("  warning: %v\n", err)
+			ntfyTopic = ""
+			ntfyServer = ""
+		}
+	}
+
+	if discord != "" || webhook != "" || ntfyTopic != "" {
 		fmt.Print("Quiet hours (e.g. 02:00-06:00, empty to skip): ")
 		if scanner.Scan() {
 			if v := strings.TrimSpace(scanner.Text()); v != "" {
@@ -216,12 +231,12 @@ func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	return check, true
 }
 
-// maskSecrets redacts webhook URLs in TOML output for safe terminal display.
+// maskSecrets redacts notification destinations in TOML output for safe terminal display.
 func maskSecrets(toml string) string {
 	var out strings.Builder
 	for _, line := range strings.Split(toml, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "discord_webhook") || strings.HasPrefix(trimmed, "webhook_url") {
+		if strings.HasPrefix(trimmed, "discord_webhook") || strings.HasPrefix(trimmed, "webhook_url") || strings.HasPrefix(trimmed, "ntfy_topic") {
 			if eq := strings.Index(line, "="); eq >= 0 {
 				out.WriteString(line[:eq+1])
 				out.WriteString(` "***REDACTED***"`)
@@ -252,13 +267,19 @@ func buildConfigTOML(cfg initConfig) string {
 		b.WriteString("# socket = \"/var/run/docker.sock\"\n")
 	}
 
-	if cfg.discordWebhook != "" || cfg.webhookURL != "" || len(cfg.quietHours) > 0 {
+	if cfg.discordWebhook != "" || cfg.webhookURL != "" || cfg.ntfyTopic != "" || len(cfg.quietHours) > 0 {
 		b.WriteString("\n[notifications]\n")
 		if cfg.discordWebhook != "" {
 			b.WriteString(fmt.Sprintf("discord_webhook = %q\n", cfg.discordWebhook))
 		}
 		if cfg.webhookURL != "" {
 			b.WriteString(fmt.Sprintf("webhook_url = %q\n", cfg.webhookURL))
+		}
+		if cfg.ntfyTopic != "" {
+			b.WriteString(fmt.Sprintf("ntfy_topic = %q\n", cfg.ntfyTopic))
+			if cfg.ntfyServer != "" && cfg.ntfyServer != config.DefaultNtfyServer {
+				b.WriteString(fmt.Sprintf("ntfy_server = %q\n", cfg.ntfyServer))
+			}
 		}
 		if len(cfg.quietHours) > 0 {
 			quoted := make([]string, len(cfg.quietHours))
@@ -463,7 +484,7 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		sections = append(sections, optionalSection{label: "Docker container monitoring"})
 	}
 	sections = append(sections,
-		optionalSection{label: "Notifications (Discord / webhook)"},
+		optionalSection{label: "Notifications (Discord / webhook / ntfy)"},
 		optionalSection{label: "Service checks (HTTP / TCP)"},
 		optionalSection{label: "Collection interval & retention"},
 	)
@@ -502,7 +523,7 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 
 	if sections[sectionIndex].enabled {
 		fmt.Println()
-		cfg.discordWebhook, cfg.webhookURL, cfg.quietHours = promptNotifications(scanner)
+		cfg.discordWebhook, cfg.webhookURL, cfg.ntfyTopic, cfg.ntfyServer, cfg.quietHours = promptNotifications(scanner)
 	}
 	sectionIndex++
 

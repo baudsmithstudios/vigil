@@ -8,7 +8,9 @@ import (
 
 	"vigil/internal/alert"
 	"vigil/internal/collector"
+	"vigil/internal/config"
 	"vigil/internal/metric"
+	"vigil/internal/notify"
 	"vigil/internal/store"
 )
 
@@ -51,6 +53,37 @@ func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 	// Bare "disk_percent" key must not exist.
 	if _, ok := values["disk_percent"]; ok {
 		t.Error("bare 'disk_percent' key should not exist in values map")
+	}
+}
+
+func TestBuildNotifierIncludesNtfy(t *testing.T) {
+	notifier, mute, err := buildNotifier(config.Notifications{
+		NtfyTopic:  "vigil-alerts",
+		NtfyServer: "https://ntfy.example.com",
+	})
+	if err != nil {
+		t.Fatalf("buildNotifier() error = %v", err)
+	}
+	if mute == nil {
+		t.Fatal("expected mute toggle")
+	}
+	quiet, ok := notifier.(notify.Quiet)
+	if !ok {
+		t.Fatalf("notifier = %T, want notify.Quiet", notifier)
+	}
+	multi, ok := quiet.Inner.(notify.Multi)
+	if !ok {
+		t.Fatalf("inner notifier = %T, want notify.Multi", quiet.Inner)
+	}
+	if len(multi) != 1 {
+		t.Fatalf("expected 1 notifier, got %d", len(multi))
+	}
+	ntfy, ok := multi[0].(notify.Ntfy)
+	if !ok {
+		t.Fatalf("inner notifier = %T, want notify.Ntfy", multi[0])
+	}
+	if ntfy.Topic != "vigil-alerts" || ntfy.Server != "https://ntfy.example.com" {
+		t.Errorf("unexpected ntfy config: %+v", ntfy)
 	}
 }
 

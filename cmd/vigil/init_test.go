@@ -137,14 +137,35 @@ func TestBuildConfigTOML_Notifications(t *testing.T) {
 		interval:       "2s",
 		retention:      "12h",
 		discordWebhook: "https://discord.com/api/webhooks/123/abc",
+		ntfyTopic:      "vigil-alerts",
+		ntfyServer:     "https://ntfy.example.com",
 		quietHours:     []string{"02:00-06:00"},
 	}
 	toml := buildConfigTOML(cfg)
 	if !strings.Contains(toml, `discord_webhook = "https://discord.com/api/webhooks/123/abc"`) {
 		t.Error("expected discord webhook in output")
 	}
+	if !strings.Contains(toml, `ntfy_topic = "vigil-alerts"`) {
+		t.Error("expected ntfy topic in output")
+	}
+	if !strings.Contains(toml, `ntfy_server = "https://ntfy.example.com"`) {
+		t.Error("expected ntfy server in output")
+	}
 	if !strings.Contains(toml, `quiet_hours = ["02:00-06:00"]`) {
 		t.Error("expected quiet hours in output")
+	}
+}
+
+func TestMaskSecrets_RedactsNtfyTopic(t *testing.T) {
+	input := `[notifications]
+ntfy_topic = "private-topic"
+ntfy_server = "https://ntfy.example.com"`
+	got := maskSecrets(input)
+	if strings.Contains(got, "private-topic") {
+		t.Fatalf("expected ntfy topic to be redacted, got %q", got)
+	}
+	if !strings.Contains(got, `ntfy_server = "https://ntfy.example.com"`) {
+		t.Fatalf("expected ntfy server to remain visible, got %q", got)
 	}
 }
 
@@ -199,14 +220,35 @@ func TestParseToggleInput(t *testing.T) {
 
 func TestPromptNotifications(t *testing.T) {
 	// Skip discord, provide webhook, provide quiet hours
-	input := "\nhttps://hooks.example.com/alert\n02:00-06:00\n"
+	input := "\nhttps://hooks.example.com/alert\n\n02:00-06:00\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
-	discord, webhook, qh := promptNotifications(scanner)
+	discord, webhook, ntfyTopic, ntfyServer, qh := promptNotifications(scanner)
 	if discord != "" {
 		t.Errorf("expected empty discord, got %q", discord)
 	}
 	if webhook != "https://hooks.example.com/alert" {
 		t.Errorf("expected webhook URL, got %q", webhook)
+	}
+	if ntfyTopic != "" || ntfyServer != "" {
+		t.Errorf("expected empty ntfy config, got topic=%q server=%q", ntfyTopic, ntfyServer)
+	}
+	if len(qh) != 1 || qh[0] != "02:00-06:00" {
+		t.Errorf("expected quiet hours, got %v", qh)
+	}
+}
+
+func TestPromptNotifications_Ntfy(t *testing.T) {
+	input := "\n\nvigil-alerts\nhttps://ntfy.example.com\n02:00-06:00\n"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	discord, webhook, ntfyTopic, ntfyServer, qh := promptNotifications(scanner)
+	if discord != "" || webhook != "" {
+		t.Errorf("expected empty webhooks, got discord=%q webhook=%q", discord, webhook)
+	}
+	if ntfyTopic != "vigil-alerts" {
+		t.Errorf("expected ntfy topic, got %q", ntfyTopic)
+	}
+	if ntfyServer != "https://ntfy.example.com" {
+		t.Errorf("expected ntfy server, got %q", ntfyServer)
 	}
 	if len(qh) != 1 || qh[0] != "02:00-06:00" {
 		t.Errorf("expected quiet hours, got %v", qh)
@@ -214,12 +256,12 @@ func TestPromptNotifications(t *testing.T) {
 }
 
 func TestPromptNotifications_NoWebhooks(t *testing.T) {
-	// Skip both → no quiet hours prompt
-	input := "\n\n"
+	// Skip notification destinations, so quiet hours are not prompted.
+	input := "\n\n\n\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
-	discord, webhook, qh := promptNotifications(scanner)
-	if discord != "" || webhook != "" || len(qh) != 0 {
-		t.Errorf("expected all empty, got discord=%q webhook=%q qh=%v", discord, webhook, qh)
+	discord, webhook, ntfyTopic, ntfyServer, qh := promptNotifications(scanner)
+	if discord != "" || webhook != "" || ntfyTopic != "" || ntfyServer != "" || len(qh) != 0 {
+		t.Errorf("expected all empty, got discord=%q webhook=%q ntfyTopic=%q ntfyServer=%q qh=%v", discord, webhook, ntfyTopic, ntfyServer, qh)
 	}
 }
 

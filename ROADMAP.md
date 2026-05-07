@@ -27,6 +27,7 @@ All v1 features have shipped:
 ### v2
 
 - Disk I/O health metrics (disk latency, disk utilization, swap in/out rate, SD/MMC error deltas)
+- ntfy.sh notifications with optional custom server
 
 ---
 
@@ -49,12 +50,6 @@ Changing thresholds or webhook URLs currently requires a container restart.
 - Reload and validate `config.toml` without a full container restart
 - Apply valid config changes atomically and keep the current config if reload fails
 - Support an explicit reload signal for operational use
-
-### ntfy.sh notifications
-
-- Add `ntfy_topic` and optional `ntfy_server` (default `https://ntfy.sh`) to `[notifications]` config
-- Push notifications on phone with no auth required
-- Supports same quiet hours and mute toggle as existing channels
 
 ### `vigil --once --json`
 

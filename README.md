@@ -25,7 +25,7 @@
 - **Docker container monitoring** — opt-in per-container CPU %, memory, and status via Docker Engine API
 - **Mount watchdog** — opt-in mount presence monitoring with debounced alerts, flap detection, and interactive config helper
 - **Persistent storage** — SQLite (WAL mode), configurable retention, batched writes
-- **Alerting** — threshold and rate-of-change rules with Discord/webhook notifications and quiet hours
+- **Alerting** — threshold and rate-of-change rules with Discord/webhook/ntfy.sh notifications and quiet hours
 - **Service health checks** — HTTP endpoint and TCP port monitoring with consecutive-failure alerting
 - **Headless mode** — `--headless` for background collection without a terminal
 - **Hardened by default** — read-only root filesystem, no capabilities, non-root user, resource limits
@@ -112,7 +112,7 @@ All fields are optional — Vigil runs zero-config with sane defaults. Generate 
 | `retention` | `12h` | Reading retention before purge |
 | `theme` | `auto` | Color theme: `auto`, `dark`, or `light` |
 | `[[alerts]]` | CPU/mem/disk at 90% (zero-config) | Threshold alert rules |
-| `[notifications]` | _(disabled)_ | Discord/webhook delivery |
+| `[notifications]` | _(disabled)_ | Discord/webhook/ntfy.sh delivery |
 | `[docker]` | _(disabled)_ | Container monitoring |
 | `[[mount_checks]]` | _(disabled)_ | Mount presence monitoring |
 | `[services]` | `interval = "30s"`, `failures_before_alert = 2` | Service check behavior |
@@ -140,10 +140,12 @@ Rules support `threshold`, `delta_threshold`, or both. Threshold alerts fire whe
 [notifications]
 discord_webhook = "https://discord.com/api/webhooks/..."
 webhook_url     = "https://example.com/alerts"
+ntfy_topic      = "vigil-alerts"
+ntfy_server     = "https://ntfy.sh"  # optional, defaults to https://ntfy.sh
 quiet_hours     = ["02:00-06:00"]
 ```
 
-Both channels can be enabled simultaneously. Quiet hours suppress delivery only — alerts still fire and persist. Press `m` in the TUI for session-level mute.
+Channels can be enabled simultaneously. Quiet hours suppress delivery only — alerts still fire and persist. Press `m` in the TUI for session-level mute.
 
 ### Docker Container Monitoring
 
@@ -350,7 +352,7 @@ Vigil targets a specific niche: a single-binary terminal monitor with built-in s
 | Live TUI dashboard | Yes | Yes | Yes | Yes | Web UI | Yes |
 | Built-in data persistence | SQLite | No | No | Export only | Custom TSDB | No |
 | Threshold alerting | Yes | No | No | Yes | Yes | No |
-| Notifications (Discord/webhook) | Yes | No | No | Yes | Yes | No |
+| Notifications (Discord/webhook/ntfy.sh) | Yes | No | No | Yes | Yes | No |
 | Docker container metrics | Yes | No | No | Yes | Yes | No |
 | Mount watchdog | Yes | No | No | No | No | No |
 | Service health checks | Yes | No | No | No | Yes | No |

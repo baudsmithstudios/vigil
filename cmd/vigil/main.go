@@ -85,36 +85,9 @@ func main() {
 
 	alertEngine := alert.New(cfg.Alerts)
 
-	// Build notifier chain from config.
-	var notifiers notify.Multi
-	if u := cfg.Notifications.DiscordWebhook; u != "" {
-		if err := notify.ValidateURL(u); err != nil {
-			log.Fatalf("discord_webhook: %v", err)
-		}
-		notifiers = append(notifiers, notify.Discord{WebhookURL: u})
-		log.Printf("discord notifications enabled")
-	}
-	if u := cfg.Notifications.WebhookURL; u != "" {
-		if err := notify.ValidateURL(u); err != nil {
-			log.Fatalf("webhook_url: %v", err)
-		}
-		notifiers = append(notifiers, notify.Webhook{URL: u})
-		log.Printf("webhook notifications enabled")
-	}
-	var notifier notify.Notifier
-	var mute *notify.Mute
-	if len(notifiers) > 0 {
-		mute = &notify.Mute{}
-		var windows []notify.QuietWindow
-		if qh := cfg.Notifications.QuietHours; len(qh) > 0 {
-			var err error
-			windows, err = notify.ParseQuietHours(qh)
-			if err != nil {
-				log.Fatalf("quiet_hours: %v", err)
-			}
-			log.Printf("quiet hours enabled: %v", qh)
-		}
-		notifier = notify.Quiet{Inner: notifiers, Windows: windows, Mute: mute}
+	notifier, mute, err := buildNotifier(cfg.Notifications)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// Restore any alerts that were active before the last shutdown.
@@ -353,6 +326,46 @@ func runLoop(
 			}
 		}
 	}
+}
+
+func buildNotifier(cfg config.Notifications) (notify.Notifier, *notify.Mute, error) {
+	var notifiers notify.Multi
+	if u := cfg.DiscordWebhook; u != "" {
+		if err := notify.ValidateURL(u); err != nil {
+			return nil, nil, fmt.Errorf("discord_webhook: %w", err)
+		}
+		notifiers = append(notifiers, notify.Discord{WebhookURL: u})
+		log.Printf("discord notifications enabled")
+	}
+	if u := cfg.WebhookURL; u != "" {
+		if err := notify.ValidateURL(u); err != nil {
+			return nil, nil, fmt.Errorf("webhook_url: %w", err)
+		}
+		notifiers = append(notifiers, notify.Webhook{URL: u})
+		log.Printf("webhook notifications enabled")
+	}
+	if cfg.NtfyTopic != "" {
+		if err := notify.ValidateServerURL(cfg.NtfyServer); err != nil {
+			return nil, nil, fmt.Errorf("ntfy_server: %w", err)
+		}
+		notifiers = append(notifiers, notify.Ntfy{Server: cfg.NtfyServer, Topic: cfg.NtfyTopic})
+		log.Printf("ntfy notifications enabled")
+	}
+	if len(notifiers) == 0 {
+		return nil, nil, nil
+	}
+
+	mute := &notify.Mute{}
+	var windows []notify.QuietWindow
+	if qh := cfg.QuietHours; len(qh) > 0 {
+		var err error
+		windows, err = notify.ParseQuietHours(qh)
+		if err != nil {
+			return nil, nil, fmt.Errorf("quiet_hours: %w", err)
+		}
+		log.Printf("quiet hours enabled: %v", qh)
+	}
+	return notify.Quiet{Inner: notifiers, Windows: windows, Mute: mute}, mute, nil
 }
 
 // persistAlerts evaluates alert rules, writes state changes to the DB,
