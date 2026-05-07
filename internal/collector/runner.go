@@ -70,6 +70,7 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
+// Collect gathers one snapshot without starting the polling loop.
 func (r *Runner) Collect(t time.Time) Snapshot {
 	mem := collectMemory()
 	if mem.SwapReady {
