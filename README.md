@@ -71,7 +71,14 @@ For scripting and external integrations, run one collection tick and write JSON 
 vigil --once --json
 ```
 
-This mode does not start the TUI, write SQLite data, or run background collection loops. First-tick rate fields, including CPU percentage and I/O throughput, follow normal collector semantics and may report warm-up values.
+For Docker deployments, run the same one-shot command through Compose:
+
+```sh
+docker compose run --rm vigil --once --json
+```
+
+This mode does not start the TUI, write SQLite data, evaluate alerts, send notifications, or run background collection loops. The output is a single JSON object with stable snake_case fields such as `cpu.percent_total`, `memory.percent`, `disks[].percent`, `load.load1`, `temperature[].celsius`, `services[].up`, and `uptime_sec`.
+First-tick rate fields, including CPU percentage and I/O throughput, follow normal collector semantics and may report warm-up values.
 
 | Section | What's collected |
 |---|---|
