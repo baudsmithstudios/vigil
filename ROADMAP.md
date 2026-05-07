@@ -28,6 +28,7 @@ All v1 features have shipped:
 
 - Disk I/O health metrics (disk latency, disk utilization, swap in/out rate, SD/MMC error deltas)
 - ntfy.sh notifications with optional custom server
+- `vigil --once --json` single-shot output for scripting and integration
 
 ---
 
@@ -50,14 +51,6 @@ Changing thresholds or webhook URLs currently requires a container restart.
 - Reload and validate `config.toml` without a full container restart
 - Apply valid config changes atomically and keep the current config if reload fails
 - Support an explicit reload signal for operational use
-
-### `vigil --once --json`
-
-Single-shot output for scripting and integration.
-
-- One collection tick, serialize to JSON on stdout, exit
-- No TUI, no SQLite write, no background goroutines
-- Useful for cron snapshots, watchdog scripts, Home Assistant integrations, feeding external monitoring
 
 ### `vigil doctor`
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"vigil/internal/alert"
+	"vigil/internal/checker"
 	"vigil/internal/collector"
 	"vigil/internal/config"
 	"vigil/internal/metric"
@@ -114,6 +117,172 @@ func TestBuildNotifierRejectsInvalidNtfyTopic(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestOnceOutputJSONUsesStableSnakeCaseKeys(t *testing.T) {
+	ts := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	snap := collector.Snapshot{
+		Timestamp: ts,
+		CPU: collector.CPUSnapshot{
+			PercentPerCore: []float64{10, 20},
+			PercentTotal:   15,
+			UserPercent:    5,
+			SystemPercent:  3,
+			IOWaitPercent:  1,
+			IdlePercent:    91,
+			Ready:          true,
+		},
+		Memory: collector.MemSnapshot{
+			TotalBytes:     1024,
+			UsedBytes:      512,
+			AvailableBytes: 256,
+			CachedBytes:    128,
+			BuffersBytes:   64,
+			Percent:        50,
+			SwapTotalBytes: 2048,
+			SwapUsedBytes:  1024,
+			SwapPercent:    50,
+			SwapReady:      true,
+			SwapInBytes:    4096,
+			SwapOutBytes:   8192,
+			SwapInRate:     100,
+			SwapOutRate:    200,
+		},
+		Disks: []collector.DiskSnapshot{{
+			MountPoint: "/",
+			TotalBytes: 1000,
+			UsedBytes:  250,
+			FreeBytes:  750,
+			Percent:    25,
+			Device:     "mmcblk0p2",
+		}},
+		DiskIO: []collector.DiskIOSnapshot{{
+			Device:      "mmcblk0",
+			ReadRate:    1024,
+			WriteRate:   2048,
+			UtilPercent: 12.5,
+			LatencyMs:   3.5,
+		}},
+		SDErrors: []collector.SDErrorSnapshot{{Host: "mmc0", Delta: 2}},
+		Network: []collector.NetSnapshot{{
+			Interface: "eth0",
+			BytesSent: 100,
+			BytesRecv: 200,
+			SendRate:  10,
+			RecvRate:  20,
+			ErrIn:     1,
+			ErrOut:    2,
+			DropIn:    3,
+			DropOut:   4,
+			DropRate:  5,
+			ErrRate:   6,
+		}},
+		Load:        collector.LoadSnapshot{Load1: 1, Load5: 2, Load15: 3},
+		Temperature: []collector.TempSnapshot{{SensorKey: "cpu_thermal", Celsius: 42.5}},
+		Containers: []collector.ContainerSnapshot{{
+			Name:       "vigil",
+			ID:         "abcdef123456",
+			Status:     "running",
+			CPUPercent: 1.5,
+			MemUsed:    123,
+			MemLimit:   456,
+			MemPercent: 27,
+		}},
+		Throttle: collector.ThrottleSnapshot{
+			Raw:                   1,
+			UnderVoltage:          true,
+			UnderVoltageSinceBoot: true,
+			Available:             true,
+		},
+		Mounts: []collector.MountStatus{{
+			Path:     "/mnt/data",
+			Label:    "Data",
+			Mounted:  true,
+			Unstable: false,
+		}},
+		Services: []checker.ServiceStatus{{
+			Name:       "web",
+			CheckType:  "http",
+			Up:         true,
+			StatusCode: 200,
+			Latency:    25 * time.Millisecond,
+			CheckedAt:  ts,
+		}},
+		ServiceCycleTime: ts,
+		UptimeSec:        12345,
+	}
+
+	data, err := json.Marshal(onceOutputFromSnapshot(snap))
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	for _, key := range []string{
+		"timestamp", "cpu", "memory", "disks", "disk_io", "sd_errors",
+		"network", "load", "temperature", "containers", "throttle",
+		"mounts", "services", "uptime_sec",
+	} {
+		if _, ok := out[key]; !ok {
+			t.Fatalf("expected top-level key %q in %s", key, data)
+		}
+	}
+	if _, ok := out["Timestamp"]; ok {
+		t.Fatalf("did not expect Go struct key Timestamp in %s", data)
+	}
+
+	cpu := out["cpu"].(map[string]any)
+	if _, ok := cpu["percent_total"]; !ok {
+		t.Fatalf("expected cpu.percent_total in %s", data)
+	}
+	if _, ok := cpu["PercentTotal"]; ok {
+		t.Fatalf("did not expect Go struct key cpu.PercentTotal in %s", data)
+	}
+
+	emptyCPU := onceOutputFromSnapshot(collector.Snapshot{})
+	emptyData, err := json.Marshal(emptyCPU)
+	if err != nil {
+		t.Fatalf("Marshal empty snapshot: %v", err)
+	}
+	var empty map[string]any
+	if err := json.Unmarshal(emptyData, &empty); err != nil {
+		t.Fatalf("Unmarshal empty snapshot: %v", err)
+	}
+	emptyPerCore := empty["cpu"].(map[string]any)["percent_per_core"]
+	if emptyPerCore == nil {
+		t.Fatalf("expected empty cpu.percent_per_core array, got null in %s", emptyData)
+	}
+
+	services := out["services"].([]any)
+	service := services[0].(map[string]any)
+	if got := service["latency_ms"]; got != float64(25) {
+		t.Fatalf("expected service latency_ms 25, got %v in %s", got, data)
+	}
+}
+
+func TestRunOnceJSONDoesNotOpenDatabase(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DBPath = "/path/that/should/not/exist/vigil.db"
+	cfg.Docker.Socket = ""
+	cfg.MountChecks = nil
+	cfg.HTTPChecks = nil
+	cfg.PortChecks = nil
+
+	var out bytes.Buffer
+	if err := runOnceJSON(&out, cfg); err != nil {
+		t.Fatalf("runOnceJSON() error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("runOnceJSON wrote invalid JSON: %v\n%s", err, out.String())
+	}
+	if _, ok := decoded["timestamp"]; !ok {
+		t.Fatalf("expected timestamp in JSON output: %s", out.String())
 	}
 }
 

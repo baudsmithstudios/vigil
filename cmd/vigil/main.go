@@ -38,6 +38,8 @@ func main() {
 
 	configPath := flag.String("config", "config.toml", "path to config file")
 	headless := flag.Bool("headless", false, "run collector and storage without TUI")
+	once := flag.Bool("once", false, "collect one snapshot and exit")
+	jsonOutput := flag.Bool("json", false, "write JSON output")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -45,10 +47,23 @@ func main() {
 		fmt.Println(version)
 		return
 	}
+	if *jsonOutput && !*once {
+		log.Fatal("--json requires --once")
+	}
+	if *once && !*jsonOutput {
+		log.Fatal("--once requires --json")
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
+	}
+
+	if *once {
+		if err := runOnceJSON(os.Stdout, cfg); err != nil {
+			log.Fatalf("once json: %v", err)
+		}
+		return
 	}
 
 	db, err := store.Open(cfg.DBPath)

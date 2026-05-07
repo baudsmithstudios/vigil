@@ -66,6 +66,12 @@ func (sc *ServiceChecker) Run(ctx context.Context) {
 	}
 }
 
+// CheckOnce executes one health-check cycle and returns its results.
+func (sc *ServiceChecker) CheckOnce() ([]ServiceStatus, time.Time) {
+	sc.runCycle()
+	return sc.Snapshot()
+}
+
 // Results returns a snapshot of the latest check results.
 func (sc *ServiceChecker) Results() []ServiceStatus {
 	results, _ := sc.Snapshot()

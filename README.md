@@ -28,6 +28,7 @@
 - **Alerting** — threshold and rate-of-change rules with Discord/webhook/ntfy.sh notifications and quiet hours
 - **Service health checks** — HTTP endpoint and TCP port monitoring with consecutive-failure alerting
 - **Headless mode** — `--headless` for background collection without a terminal
+- **Single-shot JSON output** — `--once --json` for scripts, cron snapshots, and integrations
 - **Hardened by default** — read-only root filesystem, no capabilities, non-root user, resource limits
 
 ## Quick Start
@@ -63,6 +64,14 @@ docker attach vigil
 The flow covers database path, mount detection, alert thresholds, and optional features (Docker monitoring, notifications, service checks, interval tuning). A preview is shown before writing.
 
 ## Metrics
+
+For scripting and external integrations, run one collection tick and write JSON to stdout:
+
+```sh
+vigil --once --json
+```
+
+This mode does not start the TUI, write SQLite data, or run background collection loops. First-tick rate fields, including CPU percentage and I/O throughput, follow normal collector semantics and may report warm-up values.
 
 | Section | What's collected |
 |---|---|
