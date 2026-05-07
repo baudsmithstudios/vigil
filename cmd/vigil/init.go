@@ -14,6 +14,7 @@ import (
 	"vigil/internal/config"
 	"vigil/internal/metric"
 	"vigil/internal/notify"
+	"vigil/internal/ntfy"
 	"vigil/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -147,12 +148,12 @@ func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, n
 		ntfyTopic = strings.TrimSpace(scanner.Text())
 	}
 	if ntfyTopic != "" {
-		if err := config.ValidateNtfyTopic(ntfyTopic); err != nil {
+		if err := ntfy.ValidateTopic(ntfyTopic); err != nil {
 			fmt.Printf("  warning: ntfy topic %v\n", err)
 			ntfyTopic = ""
 		} else {
 			ntfyServer = prompt(scanner, "ntfy server", config.DefaultNtfyServer)
-			if err := notify.ValidateServerURL(ntfyServer); err != nil {
+			if err := ntfy.ValidateServerURL(ntfyServer); err != nil {
 				fmt.Printf("  warning: %v\n", err)
 				ntfyTopic = ""
 				ntfyServer = ""

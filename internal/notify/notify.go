@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"vigil/internal/alert"
+	"vigil/internal/ntfy"
 )
 
 // Mute is a thread-safe toggle for temporarily suppressing notifications.
@@ -43,23 +44,23 @@ func ValidateURL(raw string) error {
 	return validateHTTPSURL(raw, "webhook URL")
 }
 
-// ValidateServerURL checks that a server URL is well-formed and uses HTTPS.
-func ValidateServerURL(raw string) error {
-	return validateHTTPSURL(raw, "server URL")
+func validateHTTPSURL(raw, label string) error {
+	_, err := parseHTTPSURL(raw, label)
+	return err
 }
 
-func validateHTTPSURL(raw, label string) error {
+func parseHTTPSURL(raw, label string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid %s: %w", label, err)
+		return nil, fmt.Errorf("invalid %s: %w", label, err)
 	}
 	if !strings.EqualFold(u.Scheme, "https") {
-		return fmt.Errorf("%s must use HTTPS (got %s)", label, u.Scheme)
+		return nil, fmt.Errorf("%s must use HTTPS (got %s)", label, u.Scheme)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("%s missing host", label)
+		return nil, fmt.Errorf("%s missing host", label)
 	}
-	return nil
+	return u, nil
 }
 
 // Notifier sends alert notifications to an external service.
@@ -126,6 +127,12 @@ type Ntfy struct {
 }
 
 func (n Ntfy) Send(ctx context.Context, a alert.State, resolved bool) error {
+	if err := ntfy.ValidateServerURL(n.Server); err != nil {
+		return fmt.Errorf("ntfy server: %w", err)
+	}
+	if err := ntfy.ValidateTopic(n.Topic); err != nil {
+		return fmt.Errorf("ntfy topic: %w", err)
+	}
 	endpoint, err := url.JoinPath(n.Server, n.Topic)
 	if err != nil {
 		return err

@@ -87,6 +87,16 @@ func TestBuildNotifierIncludesNtfy(t *testing.T) {
 	}
 }
 
+func TestBuildNotifierRejectsInvalidNtfyTopic(t *testing.T) {
+	_, _, err := buildNotifier(config.Notifications{
+		NtfyTopic:  "vigil/alerts",
+		NtfyServer: "https://ntfy.example.com",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestSnapshotToValues_NetDropsAndErrors(t *testing.T) {
 	snap := collector.Snapshot{
 		Network: []collector.NetSnapshot{

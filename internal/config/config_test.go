@@ -148,6 +148,7 @@ func TestValidateNotificationsNtfyTopic(t *testing.T) {
 		{"space", "vigil alerts"},
 		{"slash", "vigil/alerts"},
 		{"query", "vigil?alerts"},
+		{"percent escape", "vigil%2Falerts"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -159,6 +160,32 @@ func TestValidateNotificationsNtfyTopic(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "notifications.ntfy_topic") {
 				t.Fatalf("expected ntfy topic error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateNotificationsNtfyServerOrigin(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+	}{
+		{"path", "https://ntfy.example.com/base"},
+		{"query", "https://ntfy.example.com?token=secret"},
+		{"fragment", "https://ntfy.example.com#alerts"},
+		{"credentials", "https://user:pass@ntfy.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			cfg.Notifications.NtfyTopic = "vigil-alerts"
+			cfg.Notifications.NtfyServer = tt.server
+			err := cfg.validate()
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "notifications.ntfy_server") {
+				t.Fatalf("expected ntfy server error, got %v", err)
 			}
 		})
 	}

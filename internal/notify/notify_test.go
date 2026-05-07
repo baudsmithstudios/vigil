@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,7 +66,7 @@ func TestMultiSendReturnsErrors(t *testing.T) {
 
 func TestNtfySendPostsMessageToTopic(t *testing.T) {
 	var gotMethod, gotPath, gotTitle, gotContentType, gotBody string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		gotTitle = r.Header.Get("Title")
@@ -78,6 +79,7 @@ func TestNtfySendPostsMessageToTopic(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
+	useTestHTTPClient(t, srv.Client())
 
 	n := Ntfy{Server: srv.URL, Topic: "vigil-alerts"}
 	a := alert.State{
@@ -109,7 +111,7 @@ func TestNtfySendPostsMessageToTopic(t *testing.T) {
 
 func TestNtfySendPostsResolvedMessage(t *testing.T) {
 	var gotBody string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -118,6 +120,7 @@ func TestNtfySendPostsResolvedMessage(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
+	useTestHTTPClient(t, srv.Client())
 
 	n := Ntfy{Server: srv.URL, Topic: "vigil-alerts"}
 	a := alert.State{Name: "cpu_percent", FiredAt: time.Now()}
@@ -129,4 +132,47 @@ func TestNtfySendPostsResolvedMessage(t *testing.T) {
 	if gotBody != wantBody {
 		t.Errorf("body = %q, want %q", gotBody, wantBody)
 	}
+}
+
+func TestNtfySendRejectsInvalidConfigBeforeRequest(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	useTestHTTPClient(t, srv.Client())
+
+	tests := []struct {
+		name   string
+		server string
+		topic  string
+	}{
+		{"server path", srv.URL + "/base", "vigil-alerts"},
+		{"server query", srv.URL + "?token=secret", "vigil-alerts"},
+		{"server credentials", strings.Replace(srv.URL, "://", "://user:pass@", 1), "vigil-alerts"},
+		{"topic slash", srv.URL, "vigil/alerts"},
+		{"topic percent", srv.URL, "vigil%2Falerts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := Ntfy{Server: tt.server, Topic: tt.topic}
+			err := n.Send(context.Background(), alert.State{Name: "cpu_percent", FiredAt: time.Now()}, false)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if requests.Load() != 0 {
+				t.Fatal("expected validation to fail before sending a request")
+			}
+		})
+	}
+}
+
+func useTestHTTPClient(t *testing.T, c *http.Client) {
+	t.Helper()
+	old := client
+	client = c
+	t.Cleanup(func() {
+		client = old
+	})
 }

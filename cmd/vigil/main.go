@@ -17,6 +17,7 @@ import (
 	"vigil/internal/config"
 	"vigil/internal/metric"
 	"vigil/internal/notify"
+	"vigil/internal/ntfy"
 	"vigil/internal/store"
 	"vigil/internal/tui"
 )
@@ -345,7 +346,10 @@ func buildNotifier(cfg config.Notifications) (notify.Notifier, *notify.Mute, err
 		log.Printf("webhook notifications enabled")
 	}
 	if cfg.NtfyTopic != "" {
-		if err := notify.ValidateServerURL(cfg.NtfyServer); err != nil {
+		if err := ntfy.ValidateTopic(cfg.NtfyTopic); err != nil {
+			return nil, nil, fmt.Errorf("ntfy_topic: %w", err)
+		}
+		if err := ntfy.ValidateServerURL(cfg.NtfyServer); err != nil {
 			return nil, nil, fmt.Errorf("ntfy_server: %w", err)
 		}
 		notifiers = append(notifiers, notify.Ntfy{Server: cfg.NtfyServer, Topic: cfg.NtfyTopic})

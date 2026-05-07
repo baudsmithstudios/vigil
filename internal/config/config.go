@@ -5,14 +5,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"vigil/internal/metric"
+	"vigil/internal/ntfy"
 )
 
-const DefaultNtfyServer = "https://ntfy.sh"
+const DefaultNtfyServer = ntfy.DefaultServer
 
 // Alert defines a threshold-based alert rule.
 type Alert struct {
@@ -146,18 +146,14 @@ func (c Config) validate() error {
 		return fmt.Errorf("retention must be positive, got %s", c.Retention.Duration)
 	}
 	if c.Notifications.NtfyTopic != "" {
-		if err := ValidateNtfyTopic(c.Notifications.NtfyTopic); err != nil {
+		if err := ntfy.ValidateTopic(c.Notifications.NtfyTopic); err != nil {
 			return fmt.Errorf("notifications.ntfy_topic: %w", err)
 		}
 		if c.Notifications.NtfyServer == "" {
 			return fmt.Errorf("notifications.ntfy_server must not be empty when ntfy_topic is set")
 		}
-		u, err := url.Parse(c.Notifications.NtfyServer)
-		if err != nil || u.Host == "" {
-			return fmt.Errorf("notifications.ntfy_server: invalid url %q", c.Notifications.NtfyServer)
-		}
-		if u.Scheme != "https" {
-			return fmt.Errorf("notifications.ntfy_server: url scheme must be https, got %q", u.Scheme)
+		if err := ntfy.ValidateServerURL(c.Notifications.NtfyServer); err != nil {
+			return fmt.Errorf("notifications.ntfy_server: %w", err)
 		}
 	}
 	if s := c.Docker.Socket; s != "" {
@@ -246,13 +242,6 @@ func (c Config) validate() error {
 		// valid
 	default:
 		return fmt.Errorf("theme must be auto, dark, or light, got %q", c.Theme)
-	}
-	return nil
-}
-
-func ValidateNtfyTopic(topic string) error {
-	if strings.TrimSpace(topic) != topic || strings.ContainsAny(topic, " \t\r\n/?#") {
-		return fmt.Errorf("must not contain whitespace or URL path/query separators")
 	}
 	return nil
 }
