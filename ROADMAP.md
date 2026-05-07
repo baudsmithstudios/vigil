@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: April 22, 2026
+Last updated: May 7, 2026
 
 Vigil is an active project. Priorities and planned features may change as the project matures, and nothing in this roadmap is on a defined release schedule.
 

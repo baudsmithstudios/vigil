@@ -64,11 +64,12 @@ func TestMultiSendReturnsErrors(t *testing.T) {
 }
 
 func TestNtfySendPostsMessageToTopic(t *testing.T) {
-	var gotMethod, gotPath, gotTitle, gotBody string
+	var gotMethod, gotPath, gotTitle, gotContentType, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		gotTitle = r.Header.Get("Title")
+		gotContentType = r.Header.Get("Content-Type")
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -97,7 +98,35 @@ func TestNtfySendPostsMessageToTopic(t *testing.T) {
 	if gotTitle != "Vigil alert" {
 		t.Errorf("Title header = %q, want Vigil alert", gotTitle)
 	}
-	if !strings.Contains(gotBody, "cpu_percent") || !strings.Contains(gotBody, "CPU usage above 90%") {
-		t.Errorf("body = %q, want alert name and message", gotBody)
+	if gotContentType != "text/plain; charset=utf-8" {
+		t.Errorf("Content-Type header = %q, want text/plain; charset=utf-8", gotContentType)
+	}
+	wantBody := "⚠ cpu_percent exceeded threshold\nCPU usage above 90%\nSince 14:15:16"
+	if gotBody != wantBody {
+		t.Errorf("body = %q, want %q", gotBody, wantBody)
+	}
+}
+
+func TestNtfySendPostsResolvedMessage(t *testing.T) {
+	var gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	n := Ntfy{Server: srv.URL, Topic: "vigil-alerts"}
+	a := alert.State{Name: "cpu_percent", FiredAt: time.Now()}
+
+	if err := n.Send(context.Background(), a, true); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	wantBody := "✓ cpu_percent resolved"
+	if gotBody != wantBody {
+		t.Errorf("body = %q, want %q", gotBody, wantBody)
 	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -134,6 +135,32 @@ ntfy_server = "https://ntfy.example.com"
 	}
 	if cfg.Notifications.NtfyServer != "https://ntfy.example.com" {
 		t.Errorf("expected custom ntfy server, got %q", cfg.Notifications.NtfyServer)
+	}
+}
+
+func TestValidateNotificationsNtfyTopic(t *testing.T) {
+	tests := []struct {
+		name  string
+		topic string
+	}{
+		{"leading space", " vigil"},
+		{"trailing space", "vigil "},
+		{"space", "vigil alerts"},
+		{"slash", "vigil/alerts"},
+		{"query", "vigil?alerts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			cfg.Notifications.NtfyTopic = tt.topic
+			err := cfg.validate()
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "notifications.ntfy_topic") {
+				t.Fatalf("expected ntfy topic error, got %v", err)
+			}
+		})
 	}
 }
 

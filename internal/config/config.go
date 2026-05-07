@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -145,6 +146,9 @@ func (c Config) validate() error {
 		return fmt.Errorf("retention must be positive, got %s", c.Retention.Duration)
 	}
 	if c.Notifications.NtfyTopic != "" {
+		if err := ValidateNtfyTopic(c.Notifications.NtfyTopic); err != nil {
+			return fmt.Errorf("notifications.ntfy_topic: %w", err)
+		}
 		if c.Notifications.NtfyServer == "" {
 			return fmt.Errorf("notifications.ntfy_server must not be empty when ntfy_topic is set")
 		}
@@ -242,6 +246,13 @@ func (c Config) validate() error {
 		// valid
 	default:
 		return fmt.Errorf("theme must be auto, dark, or light, got %q", c.Theme)
+	}
+	return nil
+}
+
+func ValidateNtfyTopic(topic string) error {
+	if strings.TrimSpace(topic) != topic || strings.ContainsAny(topic, " \t\r\n/?#") {
+		return fmt.Errorf("must not contain whitespace or URL path/query separators")
 	}
 	return nil
 }

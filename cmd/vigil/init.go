@@ -147,11 +147,16 @@ func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, n
 		ntfyTopic = strings.TrimSpace(scanner.Text())
 	}
 	if ntfyTopic != "" {
-		ntfyServer = prompt(scanner, "ntfy server", config.DefaultNtfyServer)
-		if err := notify.ValidateServerURL(ntfyServer); err != nil {
-			fmt.Printf("  warning: %v\n", err)
+		if err := config.ValidateNtfyTopic(ntfyTopic); err != nil {
+			fmt.Printf("  warning: ntfy topic %v\n", err)
 			ntfyTopic = ""
-			ntfyServer = ""
+		} else {
+			ntfyServer = prompt(scanner, "ntfy server", config.DefaultNtfyServer)
+			if err := notify.ValidateServerURL(ntfyServer); err != nil {
+				fmt.Printf("  warning: %v\n", err)
+				ntfyTopic = ""
+				ntfyServer = ""
+			}
 		}
 	}
 

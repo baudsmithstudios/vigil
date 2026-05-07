@@ -146,6 +146,7 @@ quiet_hours     = ["02:00-06:00"]
 ```
 
 Channels can be enabled simultaneously. Quiet hours suppress delivery only — alerts still fire and persist. Press `m` in the TUI for session-level mute.
+ntfy topics are treated as secrets and must be a single topic name without whitespace or URL separators.
 
 ### Docker Container Monitoring
 

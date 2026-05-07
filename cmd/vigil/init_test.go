@@ -255,6 +255,15 @@ func TestPromptNotifications_Ntfy(t *testing.T) {
 	}
 }
 
+func TestPromptNotifications_InvalidNtfyTopic(t *testing.T) {
+	input := "\n\nvigil alerts\n"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	discord, webhook, ntfyTopic, ntfyServer, qh := promptNotifications(scanner)
+	if discord != "" || webhook != "" || ntfyTopic != "" || ntfyServer != "" || len(qh) != 0 {
+		t.Errorf("expected all empty, got discord=%q webhook=%q ntfyTopic=%q ntfyServer=%q qh=%v", discord, webhook, ntfyTopic, ntfyServer, qh)
+	}
+}
+
 func TestPromptNotifications_NoWebhooks(t *testing.T) {
 	// Skip notification destinations, so quiet hours are not prompted.
 	input := "\n\n\n\n"
