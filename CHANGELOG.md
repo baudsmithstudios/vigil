@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-09
+
 ### Added
 
 - ntfy.sh alert notifications with `ntfy_topic` and optional `ntfy_server` config
@@ -54,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ~20MB ARM64 Docker image; `docker compose up` one-liner deployment
 - Hardened container defaults: read-only root filesystem, non-root user, no extra capabilities
 
-[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/baudsmithstudios/vigil/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/baudsmithstudios/vigil/releases/tag/v0.1.0
