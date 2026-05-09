@@ -300,13 +300,10 @@ func renderDiskContent(disks []collector.DiskSnapshot, io []collector.DiskIOSnap
 				ioSnap = ioByDevice[parent]
 			}
 		}
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s  r %s  w %s",
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s  r %s  w %s  util %4.0f%%  await %5.1fms",
 			formatBytes(d.UsedBytes), formatBytes(d.TotalBytes),
-			formatRate(ioSnap.ReadRate), formatRate(ioSnap.WriteRate))))
-		sb.WriteString("\n")
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("   util %4.0f%%", ioSnap.UtilPercent)))
-		sb.WriteString("\n")
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("   await %5.1fms", ioSnap.LatencyMs)))
+			formatRate(ioSnap.ReadRate), formatRate(ioSnap.WriteRate),
+			ioSnap.UtilPercent, ioSnap.LatencyMs)))
 		sb.WriteString("\n")
 	}
 	return sb.String()
