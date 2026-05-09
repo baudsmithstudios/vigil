@@ -142,7 +142,7 @@ func TestRenderDiskContent_UsesParentDeviceIO(t *testing.T) {
 		60,
 	)
 
-	if !strings.Contains(content, "util   77%") || !strings.Contains(content, "await   4.2ms") {
+	if !strings.Contains(content, "util 77%") || !strings.Contains(content, "await 4.2ms") {
 		t.Fatalf("expected parent-device util/await fallback metrics in output, got:\n%s", content)
 	}
 	var detailLine string
@@ -152,7 +152,7 @@ func TestRenderDiskContent_UsesParentDeviceIO(t *testing.T) {
 			break
 		}
 	}
-	for _, want := range []string{"r 4.0K/s", "w 2.0K/s", "util   77%", "await   4.2ms"} {
+	for _, want := range []string{"r 4.0K/s", "w 2.0K/s", "util 77%", "await 4.2ms"} {
 		if !strings.Contains(detailLine, want) {
 			t.Fatalf("expected disk detail line to contain %q, got:\n%s", want, detailLine)
 		}
