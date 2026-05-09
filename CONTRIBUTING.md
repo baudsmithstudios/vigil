@@ -5,7 +5,7 @@ Thanks for your interest in contributing! Vigil is a small project and contribut
 ## Getting started
 
 1. Fork the repo and clone your fork
-2. Make sure you have Go 1.26+ installed
+2. Make sure you have the Go version required by `go.mod` installed
 3. Run `go test ./...` to verify everything passes
 4. Create a branch for your change
 

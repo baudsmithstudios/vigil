@@ -41,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Quiet hours support for alert notifications
 - Service health checks: HTTP endpoint status/latency and TCP port reachability (opt-in)
 - Persistent storage in SQLite with configurable retention and WAL mode for reliable writes
-- Historical browser showing sparklines for CPU, memory, swap, load, temperature, disk I/O, network, and service latency over 1h/6h/12h ranges
+- Query support for historical readings in SQLite
 - Alert persistence across restarts — active alerts are restored from the database on startup
 - Headless mode (`--headless`) for background collection without a terminal
 - `vigil init` for interactive config generation with environment detection

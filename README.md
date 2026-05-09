@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Raspberry%20Pi-A22846?style=flat&logo=raspberrypi&logoColor=white" alt="Raspberry Pi">
   <a href="https://github.com/baudsmithstudios/vigil/releases/latest"><img src="https://img.shields.io/github/v/release/baudsmithstudios/vigil?label=version" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5faf87.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/go-1.26-00ADD8.svg" alt="Go 1.26">
+  <img src="https://img.shields.io/badge/go-1.26.1-00ADD8.svg" alt="Go 1.26.1">
   <img src="https://img.shields.io/badge/platform-Linux%20%2F%20ARM64-333333.svg" alt="Linux / ARM64">
   <img src="https://img.shields.io/badge/docker-%7E20MB-2496ED.svg" alt="Docker ~20MB">
 </p>
@@ -27,6 +27,7 @@
 - **Persistent storage** — SQLite (WAL mode), configurable retention, batched writes
 - **Alerting** — threshold and rate-of-change rules with Discord/webhook/ntfy.sh notifications and quiet hours
 - **Service health checks** — HTTP endpoint and TCP port monitoring with consecutive-failure alerting
+- **Pi power health** — under-voltage and throttle detection from sysfs, with `vcgencmd` fallback
 - **Headless mode** — `--headless` for background collection without a terminal
 - **Single-shot JSON output** — `--once --json` for scripts, cron snapshots, and integrations
 - **Hardened by default** — read-only root filesystem, no capabilities, non-root user, resource limits
@@ -77,7 +78,7 @@ For Docker deployments, run the same one-shot command through Compose:
 docker compose run --rm vigil --once --json
 ```
 
-This mode does not start the TUI, write SQLite data, evaluate alerts, send notifications, or run background collection loops. The output is a single JSON object with stable snake_case fields such as `cpu.percent_total`, `memory.percent`, `disks[].percent`, `load.load1`, `temperature[].celsius`, `services[].up`, and `uptime_sec`.
+This mode does not start the TUI, write SQLite data, evaluate alerts, send notifications, or run background collection loops. The output is a single JSON object with stable snake_case fields such as `cpu.percent_total`, `memory.percent`, `disks[].percent`, `load.load1`, `temperature[].celsius`, `throttle.status`, `services[].up`, and `uptime_sec`.
 First-tick rate fields, including CPU percentage and I/O throughput, follow normal collector semantics and may report warm-up values.
 
 | Section | What's collected |
@@ -88,6 +89,7 @@ First-tick rate fields, including CPU percentage and I/O throughput, follow norm
 | **Disk** | Used % per mount, read/write throughput per device, utilization %, avg I/O latency |
 | **Network** | Send/recv rates per interface, error and drop rates |
 | **Temperature** | All thermal sensors; Pi fallback via `/sys/class/thermal` |
+| **Throttle** | Pi under-voltage, frequency cap, throttling, and soft temperature limit flags |
 | **SD card** | MMC error counter deltas (best-effort from debugfs) |
 | **Containers** | Name, status, CPU %, memory used/limit per container (opt-in) |
 | **Mounts** | Presence check per configured mount point, flap detection (opt-in) |
@@ -113,6 +115,7 @@ SD/MMC error counters come from `/sys/kernel/debug/mmc*/err_stats` when availabl
 | `temp` | Temperature in degrees C (all sensors, prefix match) |
 | `net_drops` | Network packet drops/sec (all interfaces, prefix match) |
 | `net_errors` | Network errors/sec (all interfaces, prefix match) |
+| `throttle` | Pi under-voltage, frequency cap, throttling, or soft temperature limit active now |
 | `mount_missing:<path>` | Mount disappeared (after 3-tick debounce) |
 | `mount_unstable:<path>` | Mount flapping (3+ cycles in 5 minutes) |
 | `service_down:<name>` | Service unreachable (after N consecutive failures) |
@@ -381,7 +384,7 @@ Vigil targets a specific niche: a single-binary terminal monitor with built-in s
 
 | Component | Library | Description |
 |---|---|---|
-| **Language** | [Go](https://github.com/golang/go) | 1.26 |
+| **Language** | [Go](https://github.com/golang/go) | 1.26.1 |
 | **TUI framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Terminal UI based on The Elm Architecture |
 | **Terminal styling** | [Lip Gloss](https://github.com/charmbracelet/lipgloss) | Declarative terminal layout and styling |
 | **System metrics** | [gopsutil](https://github.com/shirou/gopsutil) | Cross-platform process and system metrics |
