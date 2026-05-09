@@ -60,42 +60,7 @@ func (r *Runner) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case t := <-ticker.C:
-			mem := collectMemory()
-			if mem.SwapReady {
-				if r.swapReady {
-					elapsed := t.Sub(r.prevSwapAt).Seconds()
-					mem.SwapInRate, mem.SwapOutRate = applySwapRates(
-						r.prevSwapIn, r.prevSwapOut, mem.SwapInBytes, mem.SwapOutBytes, elapsed,
-					)
-				}
-				r.prevSwapIn = mem.SwapInBytes
-				r.prevSwapOut = mem.SwapOutBytes
-				r.prevSwapAt = t
-				r.swapReady = true
-			}
-
-			snap := Snapshot{
-				Timestamp:   t,
-				CPU:         r.cpu.collect(),
-				Memory:      mem,
-				Disks:       r.disk.collectSpace(),
-				DiskIO:      r.disk.collectIO(),
-				SDErrors:    r.sd.collect(),
-				Network:     r.net.collect(),
-				Load:        collectLoad(),
-				Temperature: collectTemperature(),
-				Throttle:    collectThrottle(),
-				UptimeSec:   collectUptime(),
-			}
-			if r.docker != nil {
-				snap.Containers = r.docker.collect()
-			}
-			if r.mount != nil {
-				snap.Mounts = r.mount.collect()
-			}
-			if r.services != nil {
-				snap.Services, snap.ServiceCycleTime = r.services.Snapshot()
-			}
+			snap := r.Collect(t)
 			select {
 			case r.out <- snap:
 			default:
@@ -103,4 +68,45 @@ func (r *Runner) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// Collect gathers one snapshot without starting the polling loop.
+func (r *Runner) Collect(t time.Time) Snapshot {
+	mem := collectMemory()
+	if mem.SwapReady {
+		if r.swapReady {
+			elapsed := t.Sub(r.prevSwapAt).Seconds()
+			mem.SwapInRate, mem.SwapOutRate = applySwapRates(
+				r.prevSwapIn, r.prevSwapOut, mem.SwapInBytes, mem.SwapOutBytes, elapsed,
+			)
+		}
+		r.prevSwapIn = mem.SwapInBytes
+		r.prevSwapOut = mem.SwapOutBytes
+		r.prevSwapAt = t
+		r.swapReady = true
+	}
+
+	snap := Snapshot{
+		Timestamp:   t,
+		CPU:         r.cpu.collect(),
+		Memory:      mem,
+		Disks:       r.disk.collectSpace(),
+		DiskIO:      r.disk.collectIO(),
+		SDErrors:    r.sd.collect(),
+		Network:     r.net.collect(),
+		Load:        collectLoad(),
+		Temperature: collectTemperature(),
+		Throttle:    collectThrottle(),
+		UptimeSec:   collectUptime(),
+	}
+	if r.docker != nil {
+		snap.Containers = r.docker.collect()
+	}
+	if r.mount != nil {
+		snap.Mounts = r.mount.collect()
+	}
+	if r.services != nil {
+		snap.Services, snap.ServiceCycleTime = r.services.Snapshot()
+	}
+	return snap
 }

@@ -1,13 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"vigil/internal/alert"
+	"vigil/internal/checker"
 	"vigil/internal/collector"
+	"vigil/internal/config"
 	"vigil/internal/metric"
 	"vigil/internal/store"
 )
@@ -51,6 +60,202 @@ func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 	// Bare "disk_percent" key must not exist.
 	if _, ok := values["disk_percent"]; ok {
 		t.Error("bare 'disk_percent' key should not exist in values map")
+	}
+}
+
+func TestBuildNotifierSendsNtfyNotification(t *testing.T) {
+	var gotPath, gotBody string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = srv.Client().Transport
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
+
+	notifier, mute, err := buildNotifier(config.Notifications{
+		NtfyTopic:  "vigil-alerts",
+		NtfyServer: srv.URL,
+	})
+	if err != nil {
+		t.Fatalf("buildNotifier() error = %v", err)
+	}
+	if mute == nil {
+		t.Fatal("expected mute toggle")
+	}
+	if notifier == nil {
+		t.Fatal("expected notifier")
+	}
+	err = notifier.Send(context.Background(), alert.State{
+		Name:    "cpu_percent",
+		Message: "CPU usage above 90%",
+		FiredAt: time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC),
+	}, false)
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if gotPath != "/vigil-alerts" {
+		t.Fatalf("expected request path /vigil-alerts, got %q", gotPath)
+	}
+	if !strings.Contains(gotBody, "cpu_percent") {
+		t.Fatalf("expected ntfy body to include alert name, got %q", gotBody)
+	}
+}
+
+func TestBuildNotifierRejectsInvalidNtfyTopic(t *testing.T) {
+	_, _, err := buildNotifier(config.Notifications{
+		NtfyTopic:  "vigil/alerts",
+		NtfyServer: "https://ntfy.example.com",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestOnceOutputJSONContractUsesStableKeys(t *testing.T) {
+	data, err := json.Marshal(onceOutputFromSnapshot(collector.Snapshot{}))
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	for _, key := range []string{
+		"timestamp", "cpu", "memory", "disks", "disk_io", "sd_errors",
+		"network", "load", "temperature", "containers", "throttle",
+		"mounts", "services", "uptime_sec",
+	} {
+		if _, ok := out[key]; !ok {
+			t.Fatalf("expected top-level key %q in %s", key, data)
+		}
+	}
+	if _, ok := out["Timestamp"]; ok {
+		t.Fatalf("did not expect Go struct key Timestamp in %s", data)
+	}
+
+	cpu := out["cpu"].(map[string]any)
+	if _, ok := cpu["percent_total"]; !ok {
+		t.Fatalf("expected cpu.percent_total in %s", data)
+	}
+	if _, ok := cpu["PercentTotal"]; ok {
+		t.Fatalf("did not expect Go struct key cpu.PercentTotal in %s", data)
+	}
+	if cpu["percent_per_core"] == nil {
+		t.Fatalf("expected empty cpu.percent_per_core array, got null in %s", data)
+	}
+
+	for _, key := range []string{
+		"disks", "disk_io", "sd_errors", "network", "temperature",
+		"containers", "mounts", "services",
+	} {
+		if out[key] == nil {
+			t.Fatalf("expected empty %s array, got null in %s", key, data)
+		}
+	}
+}
+
+func TestOnceOutputMapsRepresentativeValues(t *testing.T) {
+	ts := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	snap := collector.Snapshot{
+		Timestamp: ts,
+		CPU: collector.CPUSnapshot{
+			PercentPerCore: []float64{10, 20},
+			PercentTotal:   15,
+			Ready:          true,
+		},
+		Memory: collector.MemSnapshot{
+			Percent: 50,
+		},
+		Disks: []collector.DiskSnapshot{{
+			MountPoint: "/",
+			Percent:    25,
+			Device:     "mmcblk0p2",
+		}},
+		DiskIO: []collector.DiskIOSnapshot{{
+			Device:    "mmcblk0",
+			LatencyMs: 3.5,
+		}},
+		Load:        collector.LoadSnapshot{Load1: 1, Load5: 2, Load15: 3},
+		Temperature: []collector.TempSnapshot{{SensorKey: "cpu_thermal", Celsius: 42.5}},
+		Throttle: collector.ThrottleSnapshot{
+			Raw:                   1,
+			UnderVoltage:          true,
+			UnderVoltageSinceBoot: true,
+			Available:             true,
+		},
+		Mounts: []collector.MountStatus{{
+			Path:     "/mnt/data",
+			Label:    "Data",
+			Mounted:  true,
+			Unstable: false,
+		}},
+		Services: []checker.ServiceStatus{{
+			Name:       "web",
+			CheckType:  "http",
+			Up:         true,
+			StatusCode: 200,
+			Latency:    25 * time.Millisecond,
+			CheckedAt:  ts,
+		}},
+		ServiceCycleTime: ts,
+		UptimeSec:        12345,
+	}
+
+	out := onceOutputFromSnapshot(snap)
+	if got := out.Timestamp; !got.Equal(ts) {
+		t.Fatalf("expected timestamp %s, got %s", ts, got)
+	}
+	if got := out.CPU.PercentTotal; got != 15 {
+		t.Fatalf("expected cpu percent_total 15, got %v", got)
+	}
+	if got := out.Disks[0].MountPoint; got != "/" {
+		t.Fatalf("expected disk mount point /, got %q", got)
+	}
+	if got := out.DiskIO[0].LatencyMs; got != 3.5 {
+		t.Fatalf("expected disk_io latency_ms 3.5, got %v", got)
+	}
+	if got := out.Temperature[0].SensorKey; got != "cpu_thermal" {
+		t.Fatalf("expected temperature sensor_key cpu_thermal, got %q", got)
+	}
+	if got := out.Throttle.Status; got != "THROTTLED" {
+		t.Fatalf("expected throttle status THROTTLED, got %q", got)
+	}
+	if got := out.Services[0].LatencyMs; got != 25 {
+		t.Fatalf("expected service latency_ms 25, got %v", got)
+	}
+}
+
+func TestRunOnceJSONDoesNotOpenDatabase(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DBPath = filepath.Join(t.TempDir(), "missing", "vigil.db")
+	cfg.Docker.Socket = ""
+	cfg.MountChecks = nil
+	cfg.HTTPChecks = nil
+	cfg.PortChecks = nil
+
+	var out bytes.Buffer
+	if err := runOnceJSON(&out, cfg); err != nil {
+		t.Fatalf("runOnceJSON() error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("runOnceJSON wrote invalid JSON: %v\n%s", err, out.String())
+	}
+	if _, ok := decoded["timestamp"]; !ok {
+		t.Fatalf("expected timestamp in JSON output: %s", out.String())
 	}
 }
 

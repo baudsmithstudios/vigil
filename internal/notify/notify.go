@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"vigil/internal/alert"
+	"vigil/internal/ntfy"
 )
 
 // Mute is a thread-safe toggle for temporarily suppressing notifications.
@@ -40,17 +41,26 @@ var client = &http.Client{Timeout: 10 * time.Second}
 
 // ValidateURL checks that a webhook URL is well-formed and uses HTTPS.
 func ValidateURL(raw string) error {
+	return validateHTTPSURL(raw, "webhook URL")
+}
+
+func validateHTTPSURL(raw, label string) error {
+	_, err := parseHTTPSURL(raw, label)
+	return err
+}
+
+func parseHTTPSURL(raw, label string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+		return nil, fmt.Errorf("invalid %s: %w", label, err)
 	}
 	if !strings.EqualFold(u.Scheme, "https") {
-		return fmt.Errorf("webhook URL must use HTTPS (got %s)", u.Scheme)
+		return nil, fmt.Errorf("%s must use HTTPS (got %s)", label, u.Scheme)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("webhook URL missing host")
+		return nil, fmt.Errorf("%s missing host", label)
 	}
-	return nil
+	return u, nil
 }
 
 // Notifier sends alert notifications to an external service.
@@ -108,6 +118,31 @@ func (w Webhook) Send(ctx context.Context, a alert.State, resolved bool) error {
 		"since":   a.FiredAt.Format(time.RFC3339),
 	}
 	return postJSON(ctx, w.URL, payload)
+}
+
+// Ntfy sends notifications to an ntfy topic.
+type Ntfy struct {
+	Server string
+	Topic  string
+}
+
+func (n Ntfy) Send(ctx context.Context, a alert.State, resolved bool) error {
+	if err := ntfy.ValidateServerURL(n.Server); err != nil {
+		return fmt.Errorf("ntfy server: %w", err)
+	}
+	if err := ntfy.ValidateTopic(n.Topic); err != nil {
+		return fmt.Errorf("ntfy topic: %w", err)
+	}
+	endpoint, err := url.JoinPath(n.Server, n.Topic)
+	if err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("⚠ %s exceeded threshold\n%s\nSince %s",
+		a.Name, a.Message, a.FiredAt.Format("15:04:05"))
+	if resolved {
+		msg = fmt.Sprintf("✓ %s resolved", a.Name)
+	}
+	return postText(ctx, endpoint, "Vigil alert", msg)
 }
 
 // QuietWindow represents a daily time-of-day suppression window.
@@ -203,6 +238,28 @@ func postJSON(ctx context.Context, url string, payload any) error {
 			return fmt.Errorf("webhook returned %d: %s", resp.StatusCode, string(respBody))
 		}
 		return fmt.Errorf("webhook returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func postText(ctx context.Context, url, title, body string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Title", title)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		if len(respBody) > 0 {
+			return fmt.Errorf("ntfy returned %d: %s", resp.StatusCode, string(respBody))
+		}
+		return fmt.Errorf("ntfy returned %d", resp.StatusCode)
 	}
 	return nil
 }

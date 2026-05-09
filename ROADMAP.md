@@ -1,12 +1,12 @@
 # Roadmap
 
-Last updated: April 22, 2026
+Last updated: May 9, 2026
 
 Vigil is an active project. Priorities and planned features may change as the project matures, and nothing in this roadmap is on a defined release schedule.
 
 This roadmap reflects current product direction, not guaranteed delivery commitments.
 
-## Shipped
+## Shipped in the Current Branch
 
 ### v1
 
@@ -22,17 +22,19 @@ All v1 features have shipped:
 - Uptime display in TUI header
 - Historical data persistence (SQLite)
 - TUI/headless loop unification
-- Historical view infrastructure (disk I/O, network, service latency)
+- Historical persistence and query helpers
 
-### v2
+### Current branch additions
 
 - Disk I/O health metrics (disk latency, disk utilization, swap in/out rate, SD/MMC error deltas)
+- ntfy.sh notifications with optional custom server
+- `vigil --once --json` single-shot output for scripting and integration
 
 ---
 
-## v2 — Operational Completeness
+## Next — Operational Completeness
 
-Rounds out the core tool: better notifications, more Pi-relevant metrics, scripting support, and operational quality-of-life.
+Rounds out the core tool with operational quality-of-life features.
 
 ### TUI quit falls back to headless
 
@@ -49,20 +51,6 @@ Changing thresholds or webhook URLs currently requires a container restart.
 - Reload and validate `config.toml` without a full container restart
 - Apply valid config changes atomically and keep the current config if reload fails
 - Support an explicit reload signal for operational use
-
-### ntfy.sh notifications
-
-- Add `ntfy_topic` and optional `ntfy_server` (default `https://ntfy.sh`) to `[notifications]` config
-- Push notifications on phone with no auth required
-- Supports same quiet hours and mute toggle as existing channels
-
-### `vigil --once --json`
-
-Single-shot output for scripting and integration.
-
-- One collection tick, serialize to JSON on stdout, exit
-- No TUI, no SQLite write, no background goroutines
-- Useful for cron snapshots, watchdog scripts, Home Assistant integrations, feeding external monitoring
 
 ### `vigil doctor`
 

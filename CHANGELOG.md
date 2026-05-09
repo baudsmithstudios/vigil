@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-09
+
+### Added
+
+- ntfy.sh alert notifications with `ntfy_topic` and optional `ntfy_server` config
+- `vigil --once --json` for single-shot JSON snapshots without TUI, SQLite writes, or background collection loops
+
+### Fixed
+
+- Memory and disk detail rows now keep related rate and health values inline for a more compact TUI layout
+
 ## [0.2.0] - 2026-04-22
 
 ### Added
@@ -36,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Quiet hours support for alert notifications
 - Service health checks: HTTP endpoint status/latency and TCP port reachability (opt-in)
 - Persistent storage in SQLite with configurable retention and WAL mode for reliable writes
-- Historical browser showing sparklines for CPU, memory, swap, load, temperature, disk I/O, network, and service latency over 1h/6h/12h ranges
+- Query support for historical readings in SQLite
 - Alert persistence across restarts — active alerts are restored from the database on startup
 - Headless mode (`--headless`) for background collection without a terminal
 - `vigil init` for interactive config generation with environment detection
@@ -45,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ~20MB ARM64 Docker image; `docker compose up` one-liner deployment
 - Hardened container defaults: read-only root filesystem, non-root user, no extra capabilities
 
-[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/baudsmithstudios/vigil/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/baudsmithstudios/vigil/releases/tag/v0.1.0

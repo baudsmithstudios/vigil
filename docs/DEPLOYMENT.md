@@ -98,6 +98,16 @@ For background metric collection with no terminal UI, add to `docker-compose.yml
 command: ["--headless", "--config", "/app/config.toml"]
 ```
 
+## Single-Shot JSON
+
+For scripts, cron snapshots, or external monitoring integrations, run one collection tick and print JSON:
+
+```sh
+docker compose run --rm vigil --once --json
+```
+
+This uses the same host mounts and network settings as the daemon service, but exits after one snapshot. It does not write SQLite data or start the TUI/background collection loop.
+
 ## Troubleshooting
 
 ### Verifying host metrics

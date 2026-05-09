@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -95,6 +96,101 @@ path = "/media/usb0"
 	}
 }
 
+func TestLoadNotificationsNtfyDefaultServer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+[notifications]
+ntfy_topic = "vigil-alerts"
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Notifications.NtfyTopic != "vigil-alerts" {
+		t.Errorf("expected ntfy topic, got %q", cfg.Notifications.NtfyTopic)
+	}
+	if cfg.Notifications.NtfyServer != "https://ntfy.sh" {
+		t.Errorf("expected default ntfy server, got %q", cfg.Notifications.NtfyServer)
+	}
+}
+
+func TestLoadNotificationsNtfyCustomServer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+[notifications]
+ntfy_topic = "vigil-alerts"
+ntfy_server = "https://ntfy.example.com"
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Notifications.NtfyServer != "https://ntfy.example.com" {
+		t.Errorf("expected custom ntfy server, got %q", cfg.Notifications.NtfyServer)
+	}
+}
+
+func TestValidateNotificationsNtfyTopic(t *testing.T) {
+	tests := []struct {
+		name  string
+		topic string
+	}{
+		{"leading space", " vigil"},
+		{"trailing space", "vigil "},
+		{"space", "vigil alerts"},
+		{"slash", "vigil/alerts"},
+		{"query", "vigil?alerts"},
+		{"percent escape", "vigil%2Falerts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			cfg.Notifications.NtfyTopic = tt.topic
+			err := cfg.validate()
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "notifications.ntfy_topic") {
+				t.Fatalf("expected ntfy topic error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateNotificationsNtfyServerOrigin(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+	}{
+		{"path", "https://ntfy.example.com/base"},
+		{"query", "https://ntfy.example.com?mode=test"},
+		{"fragment", "https://ntfy.example.com#alerts"},
+		{"credentials", "https://:@ntfy.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			cfg.Notifications.NtfyTopic = "vigil-alerts"
+			cfg.Notifications.NtfyServer = tt.server
+			err := cfg.validate()
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "notifications.ntfy_server") {
+				t.Fatalf("expected ntfy server error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateHTTPChecks(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -130,11 +226,11 @@ func TestValidatePortChecks(t *testing.T) {
 		wantErr bool
 	}{
 		{"empty is valid", nil, false},
-		{"valid", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 22}}, false},
-		{"missing name", []PortCheck{{Host: "192.168.1.1", Port: 22}}, true},
+		{"valid", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 22}}, false},
+		{"missing name", []PortCheck{{Host: "192.0.2.1", Port: 22}}, true},
 		{"missing host", []PortCheck{{Name: "ssh", Port: 22}}, true},
-		{"port zero", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 0}}, true},
-		{"port too high", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 65536}}, true},
+		{"port zero", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 0}}, true},
+		{"port too high", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 65536}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,7 +249,7 @@ func TestValidateDuplicateNamesAcrossCheckTypes(t *testing.T) {
 	cfg := Defaults()
 	cfg.Services.Interval = TestDuration(30 * time.Second)
 	cfg.HTTPChecks = []HTTPCheck{{Name: "myservice", URL: "http://example.com"}}
-	cfg.PortChecks = []PortCheck{{Name: "myservice", Host: "192.168.1.1", Port: 22}}
+	cfg.PortChecks = []PortCheck{{Name: "myservice", Host: "192.0.2.1", Port: 22}}
 	err := cfg.validate()
 	if err == nil {
 		t.Error("expected error for duplicate name across check types, got nil")
@@ -185,7 +281,7 @@ expected_status = 200
 
 [[port_checks]]
 name = "ssh"
-host = "192.168.1.1"
+host = "192.0.2.1"
 port = 22
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -210,7 +306,7 @@ port = 22
 	if len(cfg.PortChecks) != 1 {
 		t.Fatalf("expected 1 port_check, got %d", len(cfg.PortChecks))
 	}
-	if cfg.PortChecks[0].Name != "ssh" || cfg.PortChecks[0].Host != "192.168.1.1" || cfg.PortChecks[0].Port != 22 {
+	if cfg.PortChecks[0].Name != "ssh" || cfg.PortChecks[0].Host != "192.0.2.1" || cfg.PortChecks[0].Port != 22 {
 		t.Errorf("unexpected port_check: %+v", cfg.PortChecks[0])
 	}
 }

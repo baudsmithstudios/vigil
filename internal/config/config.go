@@ -9,7 +9,10 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"vigil/internal/metric"
+	"vigil/internal/ntfy"
 )
+
+const DefaultNtfyServer = ntfy.DefaultServer
 
 // Alert defines a threshold-based alert rule.
 type Alert struct {
@@ -25,6 +28,8 @@ type Alert struct {
 type Notifications struct {
 	DiscordWebhook string   `toml:"discord_webhook"` // Discord webhook URL
 	WebhookURL     string   `toml:"webhook_url"`     // Generic webhook URL (POST JSON)
+	NtfyTopic      string   `toml:"ntfy_topic"`      // ntfy topic name
+	NtfyServer     string   `toml:"ntfy_server"`     // ntfy server URL
 	QuietHours     []string `toml:"quiet_hours"`     // e.g. ["02:00-06:00", "12:00-13:00"]
 }
 
@@ -97,6 +102,9 @@ func Defaults() Config {
 		Interval:  duration{2 * time.Second},
 		Retention: duration{12 * time.Hour},
 		Theme:     "auto",
+		Notifications: Notifications{
+			NtfyServer: DefaultNtfyServer,
+		},
 		Services: Services{
 			Interval:            duration{30 * time.Second},
 			FailuresBeforeAlert: 2,
@@ -136,6 +144,17 @@ func (c Config) validate() error {
 	}
 	if c.Retention.Duration <= 0 {
 		return fmt.Errorf("retention must be positive, got %s", c.Retention.Duration)
+	}
+	if c.Notifications.NtfyTopic != "" {
+		if err := ntfy.ValidateTopic(c.Notifications.NtfyTopic); err != nil {
+			return fmt.Errorf("notifications.ntfy_topic: %w", err)
+		}
+		if c.Notifications.NtfyServer == "" {
+			return fmt.Errorf("notifications.ntfy_server must not be empty when ntfy_topic is set")
+		}
+		if err := ntfy.ValidateServerURL(c.Notifications.NtfyServer); err != nil {
+			return fmt.Errorf("notifications.ntfy_server: %w", err)
+		}
 	}
 	if s := c.Docker.Socket; s != "" {
 		if !filepath.IsAbs(s) {
