@@ -267,9 +267,8 @@ func renderMemContent(mem collector.MemSnapshot, innerW int) string {
 		sb.WriteString(renderGauge(mem.SwapPercent, gaugeW))
 		sb.WriteString(valueStyle.Render(fmt.Sprintf(" %5.1f", mem.SwapPercent)))
 		sb.WriteString(unitStyle.Render("%\n"))
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s\n",
-			formatBytes(mem.SwapUsedBytes), formatBytes(mem.SwapTotalBytes))))
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("  in %s  out %s\n",
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  %s / %s  in %s  out %s\n",
+			formatBytes(mem.SwapUsedBytes), formatBytes(mem.SwapTotalBytes),
 			formatRate(mem.SwapInRate), formatRate(mem.SwapOutRate))))
 	}
 
