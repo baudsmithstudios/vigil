@@ -171,9 +171,9 @@ func TestValidateNotificationsNtfyServerOrigin(t *testing.T) {
 		server string
 	}{
 		{"path", "https://ntfy.example.com/base"},
-		{"query", "https://ntfy.example.com?token=secret"},
+		{"query", "https://ntfy.example.com?mode=test"},
 		{"fragment", "https://ntfy.example.com#alerts"},
-		{"credentials", "https://user:pass@ntfy.example.com"},
+		{"credentials", "https://:@ntfy.example.com"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -226,11 +226,11 @@ func TestValidatePortChecks(t *testing.T) {
 		wantErr bool
 	}{
 		{"empty is valid", nil, false},
-		{"valid", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 22}}, false},
-		{"missing name", []PortCheck{{Host: "192.168.1.1", Port: 22}}, true},
+		{"valid", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 22}}, false},
+		{"missing name", []PortCheck{{Host: "192.0.2.1", Port: 22}}, true},
 		{"missing host", []PortCheck{{Name: "ssh", Port: 22}}, true},
-		{"port zero", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 0}}, true},
-		{"port too high", []PortCheck{{Name: "ssh", Host: "192.168.1.1", Port: 65536}}, true},
+		{"port zero", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 0}}, true},
+		{"port too high", []PortCheck{{Name: "ssh", Host: "192.0.2.1", Port: 65536}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestValidateDuplicateNamesAcrossCheckTypes(t *testing.T) {
 	cfg := Defaults()
 	cfg.Services.Interval = TestDuration(30 * time.Second)
 	cfg.HTTPChecks = []HTTPCheck{{Name: "myservice", URL: "http://example.com"}}
-	cfg.PortChecks = []PortCheck{{Name: "myservice", Host: "192.168.1.1", Port: 22}}
+	cfg.PortChecks = []PortCheck{{Name: "myservice", Host: "192.0.2.1", Port: 22}}
 	err := cfg.validate()
 	if err == nil {
 		t.Error("expected error for duplicate name across check types, got nil")
@@ -281,7 +281,7 @@ expected_status = 200
 
 [[port_checks]]
 name = "ssh"
-host = "192.168.1.1"
+host = "192.0.2.1"
 port = 22
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -306,7 +306,7 @@ port = 22
 	if len(cfg.PortChecks) != 1 {
 		t.Fatalf("expected 1 port_check, got %d", len(cfg.PortChecks))
 	}
-	if cfg.PortChecks[0].Name != "ssh" || cfg.PortChecks[0].Host != "192.168.1.1" || cfg.PortChecks[0].Port != 22 {
+	if cfg.PortChecks[0].Name != "ssh" || cfg.PortChecks[0].Host != "192.0.2.1" || cfg.PortChecks[0].Port != 22 {
 		t.Errorf("unexpected port_check: %+v", cfg.PortChecks[0])
 	}
 }

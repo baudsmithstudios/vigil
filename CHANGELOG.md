@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ntfy.sh alert notifications with `ntfy_topic` and optional `ntfy_server` config
 - `vigil --once --json` for single-shot JSON snapshots without TUI, SQLite writes, or background collection loops
 
+### Fixed
+
+- Memory and disk detail rows now keep related rate and health values inline for a more compact TUI layout
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

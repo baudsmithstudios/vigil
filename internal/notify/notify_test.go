@@ -149,8 +149,8 @@ func TestNtfySendRejectsInvalidConfigBeforeRequest(t *testing.T) {
 		topic  string
 	}{
 		{"server path", srv.URL + "/base", "vigil-alerts"},
-		{"server query", srv.URL + "?token=secret", "vigil-alerts"},
-		{"server credentials", strings.Replace(srv.URL, "://", "://user:pass@", 1), "vigil-alerts"},
+		{"server query", srv.URL + "?mode=test", "vigil-alerts"},
+		{"server credentials", strings.Replace(srv.URL, "://", "://:@", 1), "vigil-alerts"},
 		{"topic slash", srv.URL, "vigil/alerts"},
 		{"topic percent", srv.URL, "vigil%2Falerts"},
 	}

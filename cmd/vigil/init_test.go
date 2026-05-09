@@ -178,7 +178,7 @@ func TestBuildConfigTOML_ServiceChecks(t *testing.T) {
 			{Name: "web", URL: "https://example.com", ExpectedStatus: 200},
 		},
 		portChecks: []config.PortCheck{
-			{Name: "ssh", Host: "192.168.1.1", Port: 22},
+			{Name: "ssh", Host: "192.0.2.1", Port: 22},
 		},
 	}
 	toml := buildConfigTOML(cfg)
@@ -287,13 +287,13 @@ func TestPromptHTTPCheck(t *testing.T) {
 }
 
 func TestPromptPortCheck(t *testing.T) {
-	input := "ssh\n192.168.1.1\n22\n"
+	input := "ssh\n192.0.2.1\n22\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	check, ok := promptPortCheck(scanner)
 	if !ok {
 		t.Fatal("expected ok")
 	}
-	if check.Name != "ssh" || check.Host != "192.168.1.1" || check.Port != 22 {
+	if check.Name != "ssh" || check.Host != "192.0.2.1" || check.Port != 22 {
 		t.Errorf("unexpected check: %+v", check)
 	}
 }

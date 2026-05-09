@@ -210,12 +210,12 @@ failures_before_alert = 2
 
 [[http_checks]]
 name = "homeassistant"
-url = "http://192.168.1.50:8123"
+url = "http://192.0.2.50:8123"
 expected_status = 200              # optional, defaults to any 2xx
 
 [[port_checks]]
 name = "mqtt"
-host = "192.168.1.50"
+host = "192.0.2.50"
 port = 1883
 ```
 
