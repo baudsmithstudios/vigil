@@ -153,6 +153,12 @@ sustained_ticks = 3               # optional: require 3 consecutive ticks before
 Rules support `threshold`, `delta_threshold`, or both. Threshold alerts fire when a value crosses a sustained level. Delta alerts fire on sudden spikes and auto-resolve when the rate of change drops. `sustained_ticks` delays firing until the condition persists for N consecutive collection ticks — useful for noisy metrics like network drops where a single blip isn't actionable.
 `vigil init` writes a Pi-focused starter set that also includes swap activity, CPU iowait, disk utilization/latency, and SD/MMC error alerts.
 
+A specific rule like `disk_latency_ms:mmcblk0` shadows the generic `disk_latency_ms` rule for that one device, so per-device overrides don't double-fire alongside the catch-all.
+
+#### SD card latency noise
+
+SD/MMC cards have spiky tail latency by design — bursts to 100-500ms are normal during journald flushes, log rotation, and the card's own garbage collection — so the generic 50ms `disk_latency_ms` threshold is noisy on the Pi's root SD while still being the right bar for an external `/data` drive. `vigil init` detects SD/MMC devices and writes a relaxed override (`disk_latency_ms:mmcblk0` at 200ms, sustained 5 ticks) on top of the generic 50ms rule. If you have a hand-edited config from v0.2.0 or v0.3.0 and you're seeing transient `disk_latency_ms:mmcblk*` alerts that resolve immediately, add the override by hand or re-run `vigil init` against a fresh config path and copy the new alerts across.
+
 ### Notifications
 
 ```toml
