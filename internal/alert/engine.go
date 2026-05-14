@@ -22,18 +22,29 @@ type State struct {
 type Engine struct {
 	mu       sync.Mutex
 	rules    []config.Alert
-	firing   map[string]State   // keyed by alert key (metric or metric:delta)
-	prev     map[string]float64 // previous tick values for delta calculation
-	sustains map[string]int     // consecutive ticks above threshold per rule+key
+	firing   map[string]State    // keyed by alert key (metric or metric:delta)
+	prev     map[string]float64  // previous tick values for delta calculation
+	sustains map[string]int      // consecutive ticks above threshold per rule+key
+	shadowed map[string]struct{} // value keys covered by a specific (suffixed) rule
 }
 
 // New creates an Engine from the given alert rules.
+//
+// A specific rule like "disk_latency_ms:mmcblk0" shadows the generic rule
+// "disk_latency_ms" for that one key, so the two rules don't double-fire.
 func New(rules []config.Alert) *Engine {
+	shadowed := make(map[string]struct{})
+	for _, r := range rules {
+		if strings.Contains(r.Metric, ":") {
+			shadowed[r.Metric] = struct{}{}
+		}
+	}
 	return &Engine{
 		rules:    rules,
 		firing:   make(map[string]State),
 		prev:     make(map[string]float64),
 		sustains: make(map[string]int),
+		shadowed: shadowed,
 	}
 }
 
@@ -62,8 +73,9 @@ func deltaKey(metric string) string {
 // matchingKeys returns value-map keys that a rule should evaluate against.
 // If rule.Metric exists as an exact key, return just that key.
 // If rule.Metric contains no ":" and keys exist with a "rule.Metric:" prefix,
-// return all such prefixed keys. Otherwise return nil.
-func matchingKeys(ruleMetric string, values map[string]float64) []string {
+// return all such prefixed keys except those shadowed by a more specific rule.
+// Otherwise return nil.
+func matchingKeys(ruleMetric string, values map[string]float64, shadowed map[string]struct{}) []string {
 	if _, ok := values[ruleMetric]; ok {
 		return []string{ruleMetric}
 	}
@@ -73,9 +85,13 @@ func matchingKeys(ruleMetric string, values map[string]float64) []string {
 	prefix := ruleMetric + ":"
 	var keys []string
 	for k := range values {
-		if strings.HasPrefix(k, prefix) {
-			keys = append(keys, k)
+		if !strings.HasPrefix(k, prefix) {
+			continue
 		}
+		if _, isShadowed := shadowed[k]; isShadowed {
+			continue
+		}
+		keys = append(keys, k)
 	}
 	return keys
 }
@@ -97,7 +113,7 @@ func (e *Engine) Evaluate(values map[string]float64) []State {
 	defer e.mu.Unlock()
 	var fired []State
 	for _, rule := range e.rules {
-		keys := matchingKeys(rule.Metric, values)
+		keys := matchingKeys(rule.Metric, values, e.shadowed)
 		for _, key := range keys {
 			v := values[key]
 
@@ -161,7 +177,7 @@ func (e *Engine) Resolved(values map[string]float64) []State {
 	defer e.mu.Unlock()
 	var resolved []State
 	for _, rule := range e.rules {
-		keys := matchingKeys(rule.Metric, values)
+		keys := matchingKeys(rule.Metric, values, e.shadowed)
 		for _, key := range keys {
 			v := values[key]
 

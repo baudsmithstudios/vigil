@@ -359,3 +359,68 @@ func TestEngine_PrefixZeroMatch(t *testing.T) {
 		t.Errorf("expected 0 alerts with no matching keys, got %d", len(fired))
 	}
 }
+
+func TestEngine_SpecificRuleShadowsGeneric(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "disk_latency_ms", Threshold: 50.0, Above: true, Message: "Disk latency high"},
+		{Metric: "disk_latency_ms:mmcblk0", Threshold: 200.0, Above: true, Message: "SD card latency high"},
+	}
+	eng := New(rules)
+
+	// mmcblk0 at 100ms: above generic (50) but below specific (200). Must not fire.
+	// sda at 75ms: above generic, no specific rule. Must fire from generic.
+	fired := eng.Evaluate(map[string]float64{
+		"disk_latency_ms:mmcblk0": 100.0,
+		"disk_latency_ms:sda":     75.0,
+	})
+	if len(fired) != 1 {
+		t.Fatalf("expected exactly 1 alert (sda only), got %d: %+v", len(fired), fired)
+	}
+	if fired[0].Name != "disk_latency_ms:sda" {
+		t.Errorf("expected sda to fire, got %q", fired[0].Name)
+	}
+}
+
+func TestEngine_SpecificRuleStillFiresWhenGenericShadowed(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "disk_latency_ms", Threshold: 50.0, Above: true, Message: "Disk latency high"},
+		{Metric: "disk_latency_ms:mmcblk0", Threshold: 200.0, Above: true, Message: "SD card latency high"},
+	}
+	eng := New(rules)
+
+	// mmcblk0 at 250ms: above its specific threshold. Generic must not double-fire.
+	fired := eng.Evaluate(map[string]float64{
+		"disk_latency_ms:mmcblk0": 250.0,
+	})
+	if len(fired) != 1 {
+		t.Fatalf("expected 1 alert from specific rule, got %d: %+v", len(fired), fired)
+	}
+	if fired[0].Name != "disk_latency_ms:mmcblk0" {
+		t.Errorf("expected specific rule fire, got %q", fired[0].Name)
+	}
+	if fired[0].Message != "SD card latency high" {
+		t.Errorf("expected specific rule message, got %q", fired[0].Message)
+	}
+}
+
+func TestEngine_ShadowedKeyDoesNotFireGenericOnResolve(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "disk_latency_ms", Threshold: 50.0, Above: true, Message: "Disk latency high"},
+		{Metric: "disk_latency_ms:mmcblk0", Threshold: 200.0, Above: true, Message: "SD card latency high"},
+	}
+	eng := New(rules)
+
+	// mmcblk0 fires specific at 250ms.
+	eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 250.0})
+
+	// Drops to 100ms: below specific (200) but above generic (50).
+	// Specific must resolve; generic must NOT fire on the shadowed key.
+	resolved := eng.Resolved(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
+	if len(resolved) != 1 || resolved[0].Name != "disk_latency_ms:mmcblk0" {
+		t.Fatalf("expected specific rule to resolve, got %+v", resolved)
+	}
+	fired := eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
+	if len(fired) != 0 {
+		t.Errorf("generic rule must not fire on shadowed key, got %+v", fired)
+	}
+}
