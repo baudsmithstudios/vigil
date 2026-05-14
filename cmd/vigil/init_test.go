@@ -508,6 +508,84 @@ func TestInitDefaultAlerts_IncludeDiskIOMetrics(t *testing.T) {
 	}
 }
 
+func TestInitDefaultAlerts_RelaxesSDLatencyThreshold(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	input := strings.Join([]string{
+		"",  // db path
+		"",  // CPU
+		"",  // mem
+		"",  // disk
+		"",  // optional sections
+		"y", // confirm
+	}, "\n") + "\n"
+
+	env := initEnv{sdDevices: []string{"mmcblk0"}}
+	if err := runInit(path, strings.NewReader(input), nil, env); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("invalid config: %v", err)
+	}
+
+	var generic, specific *config.Alert
+	for i := range cfg.Alerts {
+		a := &cfg.Alerts[i]
+		switch a.Metric {
+		case metric.DiskLatency:
+			generic = a
+		case metric.PrefixDiskLatency + "mmcblk0":
+			specific = a
+		}
+	}
+	if generic == nil {
+		t.Fatal("expected generic disk_latency_ms alert to still be written")
+	}
+	if generic.Threshold != 50.0 {
+		t.Errorf("generic disk_latency_ms threshold = %.0f, want 50", generic.Threshold)
+	}
+	if specific == nil {
+		t.Fatal("expected disk_latency_ms:mmcblk0 override alert")
+	}
+	if specific.Threshold != 200.0 {
+		t.Errorf("specific threshold = %.0f, want 200", specific.Threshold)
+	}
+	if specific.SustainedTicks != 5 {
+		t.Errorf("specific sustained_ticks = %d, want 5", specific.SustainedTicks)
+	}
+}
+
+func TestInitDefaultAlerts_NoSDOverrideWhenNoSDDetected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	input := strings.Join([]string{
+		"",  // db path
+		"",  // CPU
+		"",  // mem
+		"",  // disk
+		"",  // optional sections
+		"y", // confirm
+	}, "\n") + "\n"
+
+	if err := runInit(path, strings.NewReader(input), nil, initEnv{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("invalid config: %v", err)
+	}
+	for _, a := range cfg.Alerts {
+		if strings.HasPrefix(a.Metric, metric.PrefixDiskLatency) {
+			t.Errorf("did not expect any disk_latency_ms:* rules, got %q", a.Metric)
+		}
+	}
+}
+
 func TestInitGeneratedConfig_HasThemeAuto(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")

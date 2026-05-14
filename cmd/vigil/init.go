@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"vigil/internal/collector"
 	"vigil/internal/config"
 	"vigil/internal/metric"
 	"vigil/internal/notify"
@@ -348,12 +349,14 @@ type initEnv struct {
 	dockerSocket string   // non-empty if Docker socket found
 	thermalZones []string // thermal zone temp file paths
 	inDocker     bool     // true if running inside a container
+	sdDevices    []string // SD/MMC whole-device names (e.g. ["mmcblk0"])
 }
 
 const (
 	defaultDockerSocket = "/var/run/docker.sock"
 	defaultThermalGlob  = "/sys/class/thermal/thermal_zone*/temp"
 	defaultDockerMarker = "/.dockerenv"
+	defaultSysfsRoot    = "/sys"
 )
 
 // detectEnv probes the host for Docker socket, thermal zones, and container markers.
@@ -362,6 +365,7 @@ func detectEnv() initEnv {
 		dockerSocket: detectDockerSocket(defaultDockerSocket),
 		thermalZones: detectThermalZones(defaultThermalGlob),
 		inDocker:     detectInDocker(defaultDockerMarker),
+		sdDevices:    collector.SDMMCBlockDevices(defaultSysfsRoot),
 	}
 }
 
@@ -462,15 +466,28 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 			Message: "Disk latency above 50ms"},
 		{Metric: metric.SwapPercent, Threshold: 10.0, Above: true,
 			Message: "Swap usage above 10%"},
-		{Metric: metric.SwapIn, Threshold: 1.0, Above: true, SustainedTicks: 3,
-			Message: "Sustained swap-in activity"},
-		{Metric: metric.SwapOut, Threshold: 1.0, Above: true, SustainedTicks: 3,
-			Message: "Sustained swap-out activity"},
-		{Metric: metric.CPUIowait, Threshold: 10.0, Above: true, SustainedTicks: 3,
-			Message: "CPU iowait above 10%"},
-		{Metric: metric.SDErrors, Threshold: 0.0, Above: true,
-			Message: "SD card errors detected"},
 	}
+
+	// SD/MMC cards have spiky tail latency by design — a single 50ms threshold
+	// would be noisy on the root SD while the external /data drive needs it tight.
+	// Per-device rules shadow the generic disk_latency_ms rule for these names.
+	for _, dev := range env.sdDevices {
+		cfg.alerts = append(cfg.alerts, config.Alert{
+			Metric: metric.PrefixDiskLatency + dev, Threshold: 200.0, Above: true, SustainedTicks: 5,
+			Message: fmt.Sprintf("SD card %s latency above 200ms", dev),
+		})
+	}
+
+	cfg.alerts = append(cfg.alerts,
+		config.Alert{Metric: metric.SwapIn, Threshold: 1.0, Above: true, SustainedTicks: 3,
+			Message: "Sustained swap-in activity"},
+		config.Alert{Metric: metric.SwapOut, Threshold: 1.0, Above: true, SustainedTicks: 3,
+			Message: "Sustained swap-out activity"},
+		config.Alert{Metric: metric.CPUIowait, Threshold: 10.0, Above: true, SustainedTicks: 3,
+			Message: "CPU iowait above 10%"},
+		config.Alert{Metric: metric.SDErrors, Threshold: 0.0, Above: true,
+			Message: "SD card errors detected"},
+	)
 
 	if len(env.thermalZones) > 0 {
 		tempThresh := promptThreshold(scanner, "Temperature (°C)", 75.0)
