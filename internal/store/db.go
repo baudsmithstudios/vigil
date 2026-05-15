@@ -54,7 +54,6 @@ func Open(path string) (*DB, error) {
 	return &DB{sql: conn}, nil
 }
 
-// Close closes the underlying database connection.
 func (d *DB) Close() error {
 	return d.sql.Close()
 }

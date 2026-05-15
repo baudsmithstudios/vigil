@@ -134,7 +134,6 @@ func main() {
 		return
 	}
 
-	// Check if stdout is a TTY; fall back to headless if not.
 	if !isTerminal(os.Stdout) {
 		log.Println("stdout is not a TTY, running in headless mode")
 		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
@@ -439,8 +438,7 @@ func persistAlertChanges(
 	}
 }
 
-// handleThrottleAlert fires or resolves a hardcoded alert based on active throttle flags.
-// It manages its own firing state via the throttleFiring pointer, independent of the alert engine.
+// handleThrottleAlert tracks firing state outside the alert engine via the firing pointer.
 func handleThrottleAlert(
 	ctx context.Context,
 	snap collector.Snapshot,

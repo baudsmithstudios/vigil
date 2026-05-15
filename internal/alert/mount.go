@@ -146,7 +146,6 @@ func (h *MountAlertHandler) Evaluate(mounts []collector.MountStatus) (fired, res
 					fired = append(fired, *f)
 				}
 			}
-			// If still not mounted, no-op.
 		}
 	}
 

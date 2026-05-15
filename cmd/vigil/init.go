@@ -349,7 +349,6 @@ func detectEnv() initEnv {
 	return env
 }
 
-// runInitCmd is the entry point called from main().
 func runInitCmd(args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	configPath := fs.String("config", "config.toml", "path to config file to create")

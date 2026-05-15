@@ -32,7 +32,6 @@ func (m *Mute) Toggle() bool {
 	}
 }
 
-// IsMuted returns true if notifications are currently muted.
 func (m *Mute) IsMuted() bool {
 	return m.muted.Load()
 }
@@ -76,7 +75,6 @@ func (m Multi) Send(ctx context.Context, a alert.State, resolved bool) error {
 	return nil
 }
 
-// Discord sends notifications to a Discord webhook.
 type Discord struct {
 	WebhookURL string
 }
@@ -111,7 +109,6 @@ func (w Webhook) Send(ctx context.Context, a alert.State, resolved bool) error {
 	return postJSON(ctx, w.URL, payload)
 }
 
-// Ntfy sends notifications to an ntfy topic.
 type Ntfy struct {
 	Server string
 	Topic  string

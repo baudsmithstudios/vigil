@@ -36,7 +36,6 @@ type ServiceChecker struct {
 	cycleTime time.Time
 }
 
-// New creates a ServiceChecker from config.
 func New(svc config.Services, httpChecks []config.HTTPCheck, portChecks []config.PortCheck) *ServiceChecker {
 	return &ServiceChecker{
 		interval:   svc.Interval.Duration,

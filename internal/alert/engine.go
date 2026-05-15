@@ -27,7 +27,6 @@ type Engine struct {
 	sustains map[string]int     // consecutive ticks above threshold per rule+key
 }
 
-// New creates an Engine from the given alert rules.
 func New(rules []config.Alert) *Engine {
 	return &Engine{
 		rules:    rules,
