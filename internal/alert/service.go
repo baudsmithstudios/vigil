@@ -95,7 +95,6 @@ func (h *ServiceAlertHandler) Evaluate(results []checker.ServiceStatus) (fired, 
 					st.status = serviceDegraded
 				}
 			case serviceFiring:
-				// Already firing — no-op.
 			}
 		}
 	}

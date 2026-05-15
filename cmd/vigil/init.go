@@ -29,7 +29,6 @@ var (
 	initDimStyle     lipgloss.Style
 	initAccentStyle  lipgloss.Style
 	initWarnStyle    lipgloss.Style
-	initPreviewStyle lipgloss.Style
 )
 
 func initStyles() {
@@ -39,27 +38,6 @@ func initStyles() {
 	initDimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	initAccentStyle = lipgloss.NewStyle().Foreground(theme.Accent)
 	initWarnStyle = lipgloss.NewStyle().Foreground(theme.Warn)
-	initPreviewStyle = lipgloss.NewStyle().Foreground(theme.Dim)
-}
-
-// detectDockerSocket returns the socket path if it exists, empty string otherwise.
-func detectDockerSocket(path string) string {
-	if _, err := os.Stat(path); err == nil {
-		return path
-	}
-	return ""
-}
-
-// detectThermalZones returns paths matching the glob pattern for thermal zone temp files.
-func detectThermalZones(globPattern string) []string {
-	matches, _ := filepath.Glob(globPattern)
-	return matches
-}
-
-// detectInDocker returns true if the marker file exists.
-func detectInDocker(markerPath string) bool {
-	_, err := os.Stat(markerPath)
-	return err == nil
 }
 
 // initConfig holds values collected during the init flow.
@@ -355,21 +333,25 @@ type initEnv struct {
 const (
 	defaultDockerSocket = "/var/run/docker.sock"
 	defaultThermalGlob  = "/sys/class/thermal/thermal_zone*/temp"
-	defaultDockerMarker = "/.dockerenv"
 	defaultSysfsRoot    = "/sys"
 )
 
 // detectEnv probes the host for Docker socket, thermal zones, and container markers.
 func detectEnv() initEnv {
-	return initEnv{
-		dockerSocket: detectDockerSocket(defaultDockerSocket),
-		thermalZones: detectThermalZones(defaultThermalGlob),
-		inDocker:     detectInDocker(defaultDockerMarker),
-		sdDevices:    collector.SDMMCBlockDevices(defaultSysfsRoot),
+	var env initEnv
+	if _, err := os.Stat(defaultDockerSocket); err == nil {
+		env.dockerSocket = defaultDockerSocket
 	}
+	if matches, err := filepath.Glob(defaultThermalGlob); err == nil {
+		env.thermalZones = matches
+	}
+	if _, err := os.Stat(collector.DockerMarker); err == nil {
+		env.inDocker = true
+	}
+	env.sdDevices = collector.SDMMCBlockDevices(defaultSysfsRoot)
+	return env
 }
 
-// runInitCmd is the entry point called from main().
 func runInitCmd(args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	configPath := fs.String("config", "config.toml", "path to config file to create")
@@ -588,7 +570,7 @@ doneChecks:
 	tomlOutput := buildConfigTOML(cfg)
 	divider := initDimStyle.Render("───")
 	fmt.Println("\n" + divider + " " + initSectionStyle.Render("Generated config.toml") + " " + divider)
-	fmt.Println(initPreviewStyle.Render(maskSecrets(tomlOutput)))
+	fmt.Println(initDimStyle.Render(maskSecrets(tomlOutput)))
 	fmt.Println(divider)
 
 	fmt.Printf("Write to %s? [Y/n]: ", configPath)

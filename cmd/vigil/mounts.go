@@ -185,7 +185,6 @@ func (m pickerModel) View() string {
 
 type confirmModel struct {
 	confirmed bool
-	done      bool
 }
 
 func (m confirmModel) Init() tea.Cmd { return nil }
@@ -196,11 +195,9 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "y", "Y", "enter":
 			m.confirmed = true
-			m.done = true
 			return m, tea.Quit
 		case "n", "N", "q", "esc", "ctrl+c":
 			m.confirmed = false
-			m.done = true
 			return m, tea.Quit
 		}
 	}

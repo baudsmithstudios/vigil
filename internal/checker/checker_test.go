@@ -24,7 +24,7 @@ func waitForResults(t *testing.T, sc *ServiceChecker, n int) []ServiceStatus {
 	t.Helper()
 	deadline := time.Now().Add(1500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		results := sc.Results()
+		results, _ := sc.Snapshot()
 		if len(results) >= n {
 			return results
 		}
@@ -232,7 +232,7 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 		nil,
 	)
 
-	if !sc.CycleTime().IsZero() {
+	if _, cycle := sc.Snapshot(); !cycle.IsZero() {
 		t.Error("expected zero CycleTime before Run")
 	}
 
@@ -242,7 +242,7 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 
 	deadline := time.Now().Add(1500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		if !sc.CycleTime().IsZero() {
+		if _, cycle := sc.Snapshot(); !cycle.IsZero() {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)

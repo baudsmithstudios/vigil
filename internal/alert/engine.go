@@ -28,8 +28,6 @@ type Engine struct {
 	shadowed map[string]struct{} // value keys covered by a specific (suffixed) rule
 }
 
-// New creates an Engine from the given alert rules.
-//
 // A specific rule like "disk_latency_ms:mmcblk0" shadows the generic rule
 // "disk_latency_ms" for that one key, so the two rules don't double-fire.
 func New(rules []config.Alert) *Engine {
