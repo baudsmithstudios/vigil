@@ -47,7 +47,7 @@ func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 			{MountPoint: "/mnt/data", Percent: 20.0},
 		},
 	}
-	values := snapshotToValues(snap)
+	values := snapshotMetricValues(snap)
 
 	// Each mount should have its own key.
 	if v, ok := values[metric.PrefixDiskPercent+"/"]; !ok || v != 95.0 {
@@ -266,7 +266,7 @@ func TestSnapshotToValues_NetDropsAndErrors(t *testing.T) {
 			{Interface: "wlan0", DropRate: 0.0, ErrRate: 0.0},
 		},
 	}
-	values := snapshotToValues(snap)
+	values := snapshotMetricValues(snap)
 
 	if v, ok := values[metric.PrefixNetDrops+"eth0"]; !ok || v != 5.0 {
 		t.Errorf("expected net_drops:eth0 = 5.0, got %v (present=%v)", v, ok)
@@ -332,7 +332,7 @@ func TestSnapshotToValues_DiskIOMetrics(t *testing.T) {
 			{Host: "mmc0", Delta: 3},
 		},
 	}
-	values := snapshotToValues(snap)
+	values := snapshotMetricValues(snap)
 
 	if got := values[metric.PrefixDiskUtil+"mmcblk0"]; got != 92.5 {
 		t.Errorf("expected disk_util:mmcblk0 = 92.5, got %v", got)
@@ -405,7 +405,7 @@ func TestSnapshotToValues_DiskIOMetricsFilteredToTrackedDevices(t *testing.T) {
 			{Device: "loop0", UtilPercent: 99.0, LatencyMs: 99.0},
 		},
 	}
-	values := snapshotToValues(snap)
+	values := snapshotMetricValues(snap)
 
 	if _, ok := values[metric.PrefixDiskUtil+"mmcblk0"]; !ok {
 		t.Fatal("expected tracked device mmcblk0 in values")
@@ -421,7 +421,7 @@ func TestSnapshotToValues_TemperatureUsesPrefixedKey(t *testing.T) {
 			{SensorKey: "cpu_thermal", Celsius: 71.5},
 		},
 	}
-	values := snapshotToValues(snap)
+	values := snapshotMetricValues(snap)
 
 	if got := values[metric.PrefixTemp+"cpu_thermal"]; got != 71.5 {
 		t.Fatalf("expected %s = 71.5, got %v", metric.PrefixTemp+"cpu_thermal", got)

@@ -72,12 +72,6 @@ func (sc *ServiceChecker) CheckOnce() ([]ServiceStatus, time.Time) {
 	return sc.Snapshot()
 }
 
-// Results returns a snapshot of the latest check results.
-func (sc *ServiceChecker) Results() []ServiceStatus {
-	results, _ := sc.Snapshot()
-	return results
-}
-
 // Snapshot returns the latest check results and cycle completion time atomically.
 func (sc *ServiceChecker) Snapshot() ([]ServiceStatus, time.Time) {
 	sc.mu.Lock()
@@ -85,12 +79,6 @@ func (sc *ServiceChecker) Snapshot() ([]ServiceStatus, time.Time) {
 	out := make([]ServiceStatus, len(sc.results))
 	copy(out, sc.results)
 	return out, sc.cycleTime
-}
-
-// CycleTime returns when the last check cycle completed.
-func (sc *ServiceChecker) CycleTime() time.Time {
-	_, cycle := sc.Snapshot()
-	return cycle
 }
 
 func (sc *ServiceChecker) runCycle() {

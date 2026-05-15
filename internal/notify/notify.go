@@ -41,26 +41,17 @@ var client = &http.Client{Timeout: 10 * time.Second}
 
 // ValidateURL checks that a webhook URL is well-formed and uses HTTPS.
 func ValidateURL(raw string) error {
-	return validateHTTPSURL(raw, "webhook URL")
-}
-
-func validateHTTPSURL(raw, label string) error {
-	_, err := parseHTTPSURL(raw, label)
-	return err
-}
-
-func parseHTTPSURL(raw, label string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("invalid %s: %w", label, err)
+		return fmt.Errorf("invalid webhook URL: %w", err)
 	}
 	if !strings.EqualFold(u.Scheme, "https") {
-		return nil, fmt.Errorf("%s must use HTTPS (got %s)", label, u.Scheme)
+		return fmt.Errorf("webhook URL must use HTTPS (got %s)", u.Scheme)
 	}
 	if u.Host == "" {
-		return nil, fmt.Errorf("%s missing host", label)
+		return fmt.Errorf("webhook URL missing host")
 	}
-	return u, nil
+	return nil
 }
 
 // Notifier sends alert notifications to an external service.

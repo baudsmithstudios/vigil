@@ -10,64 +10,6 @@ import (
 	"vigil/internal/metric"
 )
 
-func TestDetectDocker(t *testing.T) {
-	// Socket exists → detected
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "docker.sock")
-	if err := os.WriteFile(sock, nil, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if path := detectDockerSocket(sock); path == "" {
-		t.Error("expected docker socket to be detected")
-	}
-
-	// Socket missing → empty
-	if path := detectDockerSocket(filepath.Join(dir, "nope.sock")); path != "" {
-		t.Errorf("expected empty, got %q", path)
-	}
-}
-
-func TestDetectThermalZones(t *testing.T) {
-	dir := t.TempDir()
-	// Create fake thermal zone
-	zone := filepath.Join(dir, "thermal_zone0")
-	if err := os.MkdirAll(zone, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(zone, "temp"), []byte("42000"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	zones := detectThermalZones(filepath.Join(dir, "thermal_zone*", "temp"))
-	if len(zones) != 1 {
-		t.Fatalf("expected 1 zone, got %d", len(zones))
-	}
-
-	// No zones
-	empty := detectThermalZones(filepath.Join(t.TempDir(), "thermal_zone*", "temp"))
-	if len(empty) != 0 {
-		t.Errorf("expected 0 zones, got %d", len(empty))
-	}
-}
-
-func TestDetectInDocker(t *testing.T) {
-	dir := t.TempDir()
-	marker := filepath.Join(dir, ".dockerenv")
-
-	// No marker → false
-	if detectInDocker(marker) {
-		t.Error("expected false without .dockerenv")
-	}
-
-	// With marker → true
-	if err := os.WriteFile(marker, nil, 0644); err != nil {
-		t.Fatal(err)
-	}
-	if !detectInDocker(marker) {
-		t.Error("expected true with .dockerenv")
-	}
-}
-
 func TestPromptDefault(t *testing.T) {
 	// Empty input → returns default
 	scanner := bufio.NewScanner(strings.NewReader("\n"))
