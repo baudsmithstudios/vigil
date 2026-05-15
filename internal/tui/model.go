@@ -38,7 +38,6 @@ type Model struct {
 	mute         *notify.Mute // nil if no notifier configured
 }
 
-// New creates an initial TUI model.
 func New(themeSetting string, onDismiss DismissFunc, mute *notify.Mute) Model {
 	buildStyles(ResolveTheme(themeSetting))
 	return Model{

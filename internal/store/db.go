@@ -19,12 +19,9 @@ type Reading struct {
 
 // AlertRecord persists alert state to the DB.
 type AlertRecord struct {
-	Name        string
-	Message     string
-	FiredAt     time.Time
-	Resolved    bool
-	ResolvedAt  *time.Time
-	DismissedAt *time.Time
+	Name    string
+	Message string
+	FiredAt time.Time
 }
 
 // DB wraps the SQLite connection.
@@ -57,7 +54,6 @@ func Open(path string) (*DB, error) {
 	return &DB{sql: conn}, nil
 }
 
-// Close closes the underlying database connection.
 func (d *DB) Close() error {
 	return d.sql.Close()
 }
@@ -195,15 +191,15 @@ func (d *DB) PurgeOlderThan(cutoff time.Time) error {
 // WriteAlert inserts or updates an alert record.
 func (d *DB) WriteAlert(a AlertRecord) error {
 	_, err := d.sql.Exec(
-		`INSERT INTO alerts (name, message, fired_at, resolved)
-		 VALUES (?, ?, ?, ?)
+		`INSERT INTO alerts (name, message, fired_at)
+		 VALUES (?, ?, ?)
 		 ON CONFLICT(name) DO UPDATE SET
 		   message  = excluded.message,
 		   fired_at = excluded.fired_at,
-		   resolved = excluded.resolved,
+		   resolved = 0,
 		   resolved_at = NULL,
 		   dismissed_at = NULL`,
-		a.Name, a.Message, a.FiredAt.UnixNano(), boolToInt(a.Resolved),
+		a.Name, a.Message, a.FiredAt.UnixNano(),
 	)
 	return err
 }

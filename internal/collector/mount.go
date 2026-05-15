@@ -10,13 +10,14 @@ import (
 	"vigil/internal/config"
 )
 
-const defaultDockerMarker = "/.dockerenv"
+// DockerMarker is the path that exists inside a Docker container.
+const DockerMarker = "/.dockerenv"
 
 // HostMountsPath returns the path to read for host mount information.
 // Inside a container with pid:host, /proc/1/mounts reflects the host's
 // mount namespace. On the host, /proc/mounts is sufficient.
 func HostMountsPath() string {
-	return hostMountsPath(defaultDockerMarker)
+	return hostMountsPath(DockerMarker)
 }
 
 func hostMountsPath(markerPath string) string {

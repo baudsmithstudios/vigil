@@ -134,7 +134,6 @@ func main() {
 		return
 	}
 
-	// Check if stdout is a TTY; fall back to headless if not.
 	if !isTerminal(os.Stdout) {
 		log.Println("stdout is not a TTY, running in headless mode")
 		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
@@ -292,8 +291,10 @@ func runLoop(
 				return
 			}
 
-			values := snapshotToValues(snap)
-			persistAlerts(ctx, db, eng, values, lc.onAlert, n)
+			values := snapshotMetricValues(snap)
+			fired := eng.Evaluate(values)
+			resolved := eng.Resolved(values)
+			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "alert")
 			handleThrottleAlert(ctx, snap, &throttleFiring, db, lc.onAlert, n)
 			handleMountAlerts(ctx, snap, mountHandler, db, lc.onAlert, n)
 
@@ -387,14 +388,6 @@ func buildNotifier(cfg config.Notifications) (notify.Notifier, *notify.Mute, err
 	return notify.Quiet{Inner: notifiers, Windows: windows, Mute: mute}, mute, nil
 }
 
-// persistAlerts evaluates alert rules, writes state changes to the DB,
-// sends outbound notifications, and calls onAlert when non-nil.
-func persistAlerts(ctx context.Context, db *store.DB, eng *alert.Engine, values map[string]float64, onAlert func(fired, resolved []alert.State), n notify.Notifier) {
-	fired := eng.Evaluate(values)
-	resolved := eng.Resolved(values)
-	persistAlertChanges(ctx, fired, resolved, db, onAlert, n, "alert")
-}
-
 // persistAlertChanges writes fired/resolved alert state to the DB, sends
 // notifications, and calls onAlert when non-nil.
 func persistAlertChanges(
@@ -445,8 +438,7 @@ func persistAlertChanges(
 	}
 }
 
-// handleThrottleAlert fires or resolves a hardcoded alert based on active throttle flags.
-// It manages its own firing state via the throttleFiring pointer, independent of the alert engine.
+// handleThrottleAlert tracks firing state outside the alert engine via the firing pointer.
 func handleThrottleAlert(
 	ctx context.Context,
 	snap collector.Snapshot,
@@ -526,10 +518,6 @@ func handleServiceAlerts(
 	}
 	fired, resolved := handler.Evaluate(snap.Services)
 	persistAlertChanges(ctx, fired, resolved, db, onAlert, n, "service")
-}
-
-func snapshotToValues(snap collector.Snapshot) map[string]float64 {
-	return snapshotMetricValues(snap)
 }
 
 func snapshotMetricValues(snap collector.Snapshot) map[string]float64 {
