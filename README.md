@@ -120,6 +120,8 @@ SD/MMC error counters come from `/sys/kernel/debug/mmc*/err_stats` when availabl
 | `mount_unstable:<path>` | Mount flapping (3+ cycles in 5 minutes) |
 | `service_down:<name>` | Service unreachable (after N consecutive failures) |
 
+Metrics marked _prefix match_ also accept a `:<device>` or `:<sensor>` suffix (for example `disk_latency_ms:mmcblk0` or `temp:cpu_thermal`) to write a rule against a single device; a specific rule shadows the generic one for that key.
+
 ## Configuration
 
 All fields are optional — Vigil runs zero-config with sane defaults. Generate a config with `./vigil.sh init` or edit `config.toml` directly:
