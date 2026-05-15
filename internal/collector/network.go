@@ -49,8 +49,7 @@ func (c *netCollector) collect() []NetSnapshot {
 	return out
 }
 
-// applyRates computes per-second rates from the delta between prev and curr
-// counters and writes them into snap.
+// applyRates writes per-second send/recv/err/drop rates into snap from counter deltas.
 func applyRates(snap *NetSnapshot, prev, curr net.IOCountersStat, elapsed float64) {
 	if curr.BytesSent >= prev.BytesSent {
 		snap.SendRate = float64(curr.BytesSent-prev.BytesSent) / elapsed

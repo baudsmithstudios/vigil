@@ -388,8 +388,7 @@ func buildNotifier(cfg config.Notifications) (notify.Notifier, *notify.Mute, err
 	return notify.Quiet{Inner: notifiers, Windows: windows, Mute: mute}, mute, nil
 }
 
-// persistAlertChanges writes fired/resolved alert state to the DB, sends
-// notifications, and calls onAlert when non-nil.
+// persistAlertChanges calls onAlert if non-nil before persisting/notifying.
 func persistAlertChanges(
 	ctx context.Context,
 	fired, resolved []alert.State,

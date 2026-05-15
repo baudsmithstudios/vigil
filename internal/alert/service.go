@@ -13,8 +13,7 @@ import (
 type serviceAlertStatus int
 
 const (
-	serviceOK       serviceAlertStatus = iota
-	serviceDegraded
+	serviceOK serviceAlertStatus = iota
 	serviceFiring
 )
 
@@ -23,14 +22,13 @@ type serviceState struct {
 	failureCount int
 }
 
-// ServiceAlertHandler tracks consecutive service failures and fires alerts when a threshold is met.
+// ServiceAlertHandler fires alerts after N consecutive service-check failures.
 type ServiceAlertHandler struct {
 	mu        sync.Mutex
 	states    map[string]*serviceState
 	threshold int
 }
 
-// NewServiceHandler returns a ServiceAlertHandler that fires after failuresBeforeAlert consecutive failures.
 func NewServiceHandler(failuresBeforeAlert int) *ServiceAlertHandler {
 	return &ServiceAlertHandler{
 		states:    make(map[string]*serviceState),
@@ -38,7 +36,7 @@ func NewServiceHandler(failuresBeforeAlert int) *ServiceAlertHandler {
 	}
 }
 
-// Restore loads previously-firing alerts into the handler so they survive restarts.
+// Restore reloads previously-firing alerts so they survive restarts.
 func (h *ServiceAlertHandler) Restore(states []State) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -51,19 +49,18 @@ func (h *ServiceAlertHandler) Restore(states []State) {
 	}
 }
 
-// Dismiss resets the state for the named alert, allowing it to re-fire after reaching the threshold again.
+// Dismiss clears state so re-firing requires another full threshold of failures.
 func (h *ServiceAlertHandler) Dismiss(name string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if svcName, ok := strings.CutPrefix(name, metric.PrefixServiceDown); ok {
 		if st, exists := h.states[svcName]; exists {
-			st.status = serviceDegraded
+			st.status = serviceOK
 			st.failureCount = 0
 		}
 	}
 }
 
-// Evaluate runs the state machine for each service and returns newly fired and resolved alerts.
 func (h *ServiceAlertHandler) Evaluate(results []checker.ServiceStatus) (fired, resolved []State) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -82,7 +79,7 @@ func (h *ServiceAlertHandler) Evaluate(results []checker.ServiceStatus) (fired, 
 			st.failureCount = 0
 		} else {
 			switch st.status {
-			case serviceOK, serviceDegraded:
+			case serviceOK:
 				st.failureCount++
 				if st.failureCount >= h.threshold {
 					st.status = serviceFiring
@@ -91,8 +88,6 @@ func (h *ServiceAlertHandler) Evaluate(results []checker.ServiceStatus) (fired, 
 						Message: fmt.Sprintf("%s is not reachable", r.Name),
 						FiredAt: time.Now(),
 					})
-				} else {
-					st.status = serviceDegraded
 				}
 			case serviceFiring:
 			}
@@ -101,7 +96,6 @@ func (h *ServiceAlertHandler) Evaluate(results []checker.ServiceStatus) (fired, 
 	return fired, resolved
 }
 
-// getOrCreate returns the serviceState for the given name, creating it if needed.
 // Caller must hold h.mu.
 func (h *ServiceAlertHandler) getOrCreate(name string) *serviceState {
 	if st, ok := h.states[name]; ok {

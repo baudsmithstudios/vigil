@@ -9,7 +9,7 @@ import (
 	"vigil/internal/config"
 )
 
-// State represents an alert that has fired and may or may not still be active.
+// State is a fired alert; Resolved indicates whether it has since cleared.
 type State struct {
 	Name       string
 	Message    string
@@ -18,7 +18,7 @@ type State struct {
 	ResolvedAt time.Time
 }
 
-// Engine evaluates threshold rules against metric snapshots and tracks firing state.
+// Engine evaluates threshold and delta rules and tracks per-key firing state.
 type Engine struct {
 	mu       sync.Mutex
 	rules    []config.Alert
@@ -46,7 +46,7 @@ func New(rules []config.Alert) *Engine {
 	}
 }
 
-// Restore reloads previously-firing alerts into the engine so they survive restarts.
+// Restore reloads previously-firing alerts so they survive restarts.
 func (e *Engine) Restore(states []State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -55,24 +55,21 @@ func (e *Engine) Restore(states []State) {
 	}
 }
 
-// Dismiss removes an alert from the firing set without requiring resolution.
-// This allows manual dismissal from the TUI without the alert immediately re-firing.
+// Dismiss removes an alert from the firing set so it won't immediately re-fire.
 func (e *Engine) Dismiss(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	delete(e.firing, name)
 }
 
-// deltaKey returns the firing map key for a delta alert.
+// deltaKey is the firing-map key used for a metric's delta alert.
 func deltaKey(metric string) string {
 	return metric + ":delta"
 }
 
-// matchingKeys returns value-map keys that a rule should evaluate against.
-// If rule.Metric exists as an exact key, return just that key.
-// If rule.Metric contains no ":" and keys exist with a "rule.Metric:" prefix,
-// return all such prefixed keys except those shadowed by a more specific rule.
-// Otherwise return nil.
+// matchingKeys returns the value keys a rule should evaluate against:
+// the exact match if present, else all "ruleMetric:*" keys not shadowed by
+// a more specific rule. Returns nil for a suffixed rule with no exact match.
 func matchingKeys(ruleMetric string, values map[string]float64, shadowed map[string]struct{}) []string {
 	if _, ok := values[ruleMetric]; ok {
 		return []string{ruleMetric}
@@ -94,8 +91,7 @@ func matchingKeys(ruleMetric string, values map[string]float64, shadowed map[str
 	return keys
 }
 
-// keySuffix extracts the part after the first ":" in a key, wrapped in parens.
-// Returns empty string if there's no ":".
+// keySuffix returns " (suffix)" for a key like "metric:suffix", or "" if no colon.
 func keySuffix(key string) string {
 	i := strings.Index(key, ":")
 	if i < 0 {
@@ -104,8 +100,8 @@ func keySuffix(key string) string {
 	return " (" + key[i+1:] + ")"
 }
 
-// Evaluate checks values against all rules and returns newly-fired alerts.
-// Already-firing alerts are not re-returned until they resolve and re-fire.
+// Evaluate returns alerts newly firing this tick; already-firing alerts are
+// not re-returned until they resolve and re-fire.
 func (e *Engine) Evaluate(values map[string]float64) []State {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -168,8 +164,8 @@ func (e *Engine) Evaluate(values map[string]float64) []State {
 	return fired
 }
 
-// Resolved checks values against firing alerts and returns those that have cleared.
-// Cleared alerts are removed from the active-firing set.
+// Resolved returns firing alerts that have cleared this tick and removes
+// them from the firing set.
 func (e *Engine) Resolved(values map[string]float64) []State {
 	e.mu.Lock()
 	defer e.mu.Unlock()

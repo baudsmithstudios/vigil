@@ -24,23 +24,18 @@ import (
 
 // Init flow styles, set by initStyles().
 var (
-	initTitleStyle   lipgloss.Style
 	initSectionStyle lipgloss.Style
 	initDimStyle     lipgloss.Style
-	initAccentStyle  lipgloss.Style
 	initWarnStyle    lipgloss.Style
 )
 
 func initStyles() {
 	theme := tui.ResolveTheme("auto")
-	initTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(theme.Accent)
 	initSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(theme.Accent)
 	initDimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
-	initAccentStyle = lipgloss.NewStyle().Foreground(theme.Accent)
 	initWarnStyle = lipgloss.NewStyle().Foreground(theme.Warn)
 }
 
-// initConfig holds values collected during the init flow.
 type initConfig struct {
 	dbPath         string
 	interval       string
@@ -58,8 +53,7 @@ type initConfig struct {
 	portChecks     []config.PortCheck
 }
 
-// prompt prints a prompt with a default value and reads a line of input.
-// Empty input returns the default.
+// prompt returns user input, or defaultVal on empty input.
 func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	fmt.Printf("%s [%s] %s: ", label, defaultVal, initDimStyle.Render("(enter to accept)"))
 	if scanner.Scan() {
@@ -70,7 +64,7 @@ func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	return defaultVal
 }
 
-// promptThreshold prompts for a numeric threshold, returning the default on empty input.
+// promptThreshold returns the parsed value, or defaultVal on empty or invalid input.
 func promptThreshold(scanner *bufio.Scanner, label string, defaultVal float64) float64 {
 	fmt.Printf("%s alert threshold %% [%.0f]: ", label, defaultVal)
 	if scanner.Scan() {
@@ -84,21 +78,20 @@ func promptThreshold(scanner *bufio.Scanner, label string, defaultVal float64) f
 	return defaultVal
 }
 
-// parseToggleInput parses space-separated 1-based numbers into a set of 0-based indices.
-// Numbers out of range [1, count] are silently ignored.
-func parseToggleInput(input string, count int) map[int]bool {
-	toggled := make(map[int]bool)
+// parseToggleInput converts space-separated 1-based numbers to 0-based indices.
+// Out-of-range tokens are ignored.
+func parseToggleInput(input string, count int) map[int]struct{} {
+	toggled := make(map[int]struct{})
 	for _, tok := range strings.Fields(input) {
 		n, err := strconv.Atoi(tok)
 		if err != nil || n < 1 || n > count {
 			continue
 		}
-		toggled[n-1] = true
+		toggled[n-1] = struct{}{}
 	}
 	return toggled
 }
 
-// promptNotifications collects optional notification destinations and quiet hours.
 func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, ntfyServer string, quietHours []string) {
 	fmt.Print("Discord webhook URL (empty to skip): ")
 	if scanner.Scan() {
@@ -155,7 +148,7 @@ func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, n
 	return
 }
 
-// promptHTTPCheck collects a single HTTP check. Returns ok=false if name is empty.
+// promptHTTPCheck returns ok=false if name is empty or URL is invalid.
 func promptHTTPCheck(scanner *bufio.Scanner) (config.HTTPCheck, bool) {
 	var check config.HTTPCheck
 	fmt.Print("  Check name: ")
@@ -187,7 +180,7 @@ func promptHTTPCheck(scanner *bufio.Scanner) (config.HTTPCheck, bool) {
 	return check, true
 }
 
-// promptPortCheck collects a single TCP check. Returns ok=false if name is empty.
+// promptPortCheck returns ok=false if name is empty or port is out of range.
 func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	var check config.PortCheck
 	fmt.Print("  Check name: ")
@@ -216,7 +209,7 @@ func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	return check, true
 }
 
-// maskSecrets redacts notification destinations in TOML output for safe terminal display.
+// maskSecrets redacts notification secrets so the TOML preview is safe to print.
 func maskSecrets(toml string) string {
 	var out strings.Builder
 	for _, line := range strings.Split(toml, "\n") {
@@ -235,7 +228,6 @@ func maskSecrets(toml string) string {
 	return strings.TrimRight(out.String(), "\n")
 }
 
-// buildConfigTOML renders the collected config as a TOML string.
 func buildConfigTOML(cfg initConfig) string {
 	var b strings.Builder
 
@@ -319,10 +311,10 @@ func buildConfigTOML(cfg initConfig) string {
 	return b.String()
 }
 
-// mountDiscoverer returns available mounts. Injected for testability.
+// mountDiscoverer is injected so tests can skip mount discovery by passing nil.
 type mountDiscoverer func() []discoveredMount
 
-// initEnv holds detected environment features, injected for testability.
+// initEnv holds detected host environment. Injected for testability.
 type initEnv struct {
 	dockerSocket string   // non-empty if Docker socket found
 	thermalZones []string // thermal zone temp file paths
@@ -336,7 +328,6 @@ const (
 	defaultSysfsRoot    = "/sys"
 )
 
-// detectEnv probes the host for Docker socket, thermal zones, and container markers.
 func detectEnv() initEnv {
 	var env initEnv
 	if _, err := os.Stat(defaultDockerSocket); err == nil {
@@ -373,8 +364,7 @@ func runInitCmd(args []string) {
 	}
 }
 
-// runInit runs the interactive init flow. Reads input from r for testability.
-// discover is the mount discovery function (pass nil in tests to skip).
+// runInit drives the interactive flow, reading from r. Pass discover=nil in tests to skip mount discovery.
 func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initEnv) error {
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("%s already exists — delete it or use a different path with -config", configPath)
@@ -383,7 +373,7 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 	scanner := bufio.NewScanner(r)
 	initStyles()
 
-	fmt.Println(initTitleStyle.Render("▪ vigil init") + initDimStyle.Render(" — interactive configuration"))
+	fmt.Println(initSectionStyle.Render("▪ vigil init") + initDimStyle.Render(" — interactive configuration"))
 	fmt.Println()
 
 	var cfg initConfig
@@ -480,60 +470,56 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 	}
 
 	// --- Optional section menu ---
+	type sectionKey int
+	const (
+		secDocker sectionKey = iota
+		secNotifications
+		secServiceChecks
+		secInterval
+	)
 	type optionalSection struct {
-		label   string
-		enabled bool
+		key   sectionKey
+		label string
 	}
 	var sections []optionalSection
 	if env.dockerSocket != "" {
-		sections = append(sections, optionalSection{label: "Docker container monitoring"})
+		sections = append(sections, optionalSection{secDocker, "Docker container monitoring"})
 	}
 	sections = append(sections,
-		optionalSection{label: "Notifications (Discord / webhook / ntfy)"},
-		optionalSection{label: "Service checks (HTTP / TCP)"},
-		optionalSection{label: "Collection interval & retention"},
+		optionalSection{secNotifications, "Notifications (Discord / webhook / ntfy)"},
+		optionalSection{secServiceChecks, "Service checks (HTTP / TCP)"},
+		optionalSection{secInterval, "Collection interval & retention"},
 	)
 
+	enabled := make(map[sectionKey]bool, len(sections))
 	if len(sections) > 0 {
 		fmt.Println("\n" + initSectionStyle.Render("Optional features") + initDimStyle.Render(" (enter numbers to toggle, enter to confirm)") + ":")
 		for i, s := range sections {
-			check := "[ ]"
-			if s.enabled {
-				check = "[x]"
-			}
-			fmt.Printf("  %d. %s %s\n", i+1, check, s.label)
+			fmt.Printf("  %d. [ ] %s\n", i+1, s.label)
 		}
 		if scanner.Scan() {
-			toggled := parseToggleInput(scanner.Text(), len(sections))
-			for idx, on := range toggled {
-				if on {
-					sections[idx].enabled = true
-				}
+			for idx := range parseToggleInput(scanner.Text(), len(sections)) {
+				enabled[sections[idx].key] = true
 			}
 		}
 	}
 
-	// Walk through selected optional sections.
-	sectionIndex := 0
-	if env.dockerSocket != "" {
-		if sections[sectionIndex].enabled {
-			fmt.Println()
-			cfg.dockerSocket = prompt(scanner, "Docker socket", env.dockerSocket)
-			if _, err := os.Stat(cfg.dockerSocket); err != nil {
-				fmt.Printf("  warning: %s not found\n", cfg.dockerSocket)
-			}
+	if enabled[secDocker] {
+		fmt.Println()
+		cfg.dockerSocket = prompt(scanner, "Docker socket", env.dockerSocket)
+		if _, err := os.Stat(cfg.dockerSocket); err != nil {
+			fmt.Printf("  warning: %s not found\n", cfg.dockerSocket)
 		}
-		sectionIndex++
 	}
 
-	if sections[sectionIndex].enabled {
+	if enabled[secNotifications] {
 		fmt.Println()
 		cfg.discordWebhook, cfg.webhookURL, cfg.ntfyTopic, cfg.ntfyServer, cfg.quietHours = promptNotifications(scanner)
 	}
-	sectionIndex++
 
-	if sections[sectionIndex].enabled {
+	if enabled[secServiceChecks] {
 		fmt.Println("\nService checks:")
+	serviceLoop:
 		for {
 			fmt.Print("Add service check? (h)ttp / (t)cp / (d)one: ")
 			if !scanner.Scan() {
@@ -549,18 +535,16 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 					cfg.portChecks = append(cfg.portChecks, check)
 				}
 			default:
-				goto doneChecks
+				break serviceLoop
 			}
 		}
 	}
-doneChecks:
-	sectionIndex++
 
 	// Defaults for interval, retention, and theme.
 	cfg.interval = "2s"
 	cfg.retention = "12h"
 	cfg.theme = "auto"
-	if sections[sectionIndex].enabled {
+	if enabled[secInterval] {
 		fmt.Println()
 		cfg.interval = prompt(scanner, "Collection interval", "2s")
 		cfg.retention = prompt(scanner, "Data retention", "12h")

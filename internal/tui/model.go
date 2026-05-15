@@ -12,19 +12,17 @@ import (
 	"vigil/internal/notify"
 )
 
-// SnapshotMsg carries a new collector snapshot to the TUI model.
 type SnapshotMsg collector.Snapshot
 
-// AlertMsg carries alert state changes to the TUI model.
 type AlertMsg struct {
 	Fired    []alert.State
 	Resolved []alert.State
 }
 
-// DismissFunc is called when the user dismisses an alert.
+// DismissFunc is called when the user presses 'd' on a selected alert.
 type DismissFunc func(name string)
 
-// Model is the root bubbletea model for the vigil dashboard.
+// Model is the bubbletea root for the dashboard.
 type Model struct {
 	width    int
 	height   int
@@ -46,7 +44,7 @@ func New(themeSetting string, onDismiss DismissFunc, mute *notify.Mute) Model {
 	}
 }
 
-// SetAlerts sets the initial active alerts (e.g. restored from DB on startup).
+// SetAlerts seeds the active alert list (e.g. restored from DB on startup).
 func (m *Model) SetAlerts(alerts []alert.State) {
 	m.activeAlerts = alerts
 }

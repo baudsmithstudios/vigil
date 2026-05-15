@@ -140,20 +140,23 @@ func TestParseToggleInput(t *testing.T) {
 		name     string
 		input    string
 		count    int
-		expected map[int]bool
+		expected []int
 	}{
-		{"single", "1", 4, map[int]bool{0: true}},
-		{"multiple", "1 3", 4, map[int]bool{0: true, 2: true}},
-		{"out of range ignored", "1 5", 4, map[int]bool{0: true}},
-		{"empty confirms", "", 4, map[int]bool{}},
-		{"non-numeric ignored", "1 abc 3", 4, map[int]bool{0: true, 2: true}},
+		{"single", "1", 4, []int{0}},
+		{"multiple", "1 3", 4, []int{0, 2}},
+		{"out of range ignored", "1 5", 4, []int{0}},
+		{"empty confirms", "", 4, nil},
+		{"non-numeric ignored", "1 abc 3", 4, []int{0, 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseToggleInput(tt.input, tt.count)
-			for k, v := range tt.expected {
-				if got[k] != v {
-					t.Errorf("index %d: expected %v, got %v", k, v, got[k])
+			if len(got) != len(tt.expected) {
+				t.Fatalf("expected %d entries, got %d", len(tt.expected), len(got))
+			}
+			for _, idx := range tt.expected {
+				if _, ok := got[idx]; !ok {
+					t.Errorf("missing index %d", idx)
 				}
 			}
 		})

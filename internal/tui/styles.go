@@ -50,7 +50,6 @@ var (
 	dividerStyle lipgloss.Style
 )
 
-// buildStyles sets all package-level style vars from the given theme.
 func buildStyles(t Theme) {
 	appTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(t.Accent)
 	headerStyle = lipgloss.NewStyle().Background(t.Surface).Foreground(t.Dim)

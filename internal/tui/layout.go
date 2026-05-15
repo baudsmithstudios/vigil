@@ -6,9 +6,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// panelSpec describes a dashboard panel's layout properties.
-// When stack is set, the cell renders multiple panels stacked vertically
-// instead of a single panel.
+// panelSpec is one cell in the row layout; if stack is set, the cell renders
+// those sub-panels stacked vertically instead of a single panel.
 type panelSpec struct {
 	name   string
 	title  string
@@ -16,8 +15,7 @@ type panelSpec struct {
 	stack  []panelSpec // when set, renders stacked panels in this column
 }
 
-// hasContent reports whether this cell has renderable content.
-// For stacked cells, returns true if any sub-panel has content.
+// hasContent is true if this cell — or, for stacks, any sub-panel — has content.
 func (p panelSpec) hasContent(contents map[string]string) bool {
 	if len(p.stack) > 0 {
 		for _, sp := range p.stack {
@@ -30,8 +28,7 @@ func (p panelSpec) hasContent(contents map[string]string) bool {
 	return contents[p.name] != ""
 }
 
-// selectLayout returns the row configuration for the given terminal width.
-// Panel order is fixed; only the grouping changes.
+// selectLayout chooses row grouping by terminal width; panel order is fixed.
 func selectLayout(width int) [][]panelSpec {
 	cpu := panelSpec{name: "cpu", title: "CPU", weight: 3}
 	mem := panelSpec{name: "mem", title: "Memory", weight: 3}
@@ -97,9 +94,8 @@ func distributeWidths(termWidth int, weights []int) []int {
 	return widths
 }
 
-// renderRow renders a single row of panels, distributing width by weight.
-// Panels whose content is empty are filtered out before width distribution.
-// Stacked cells render multiple panels vertically within their column.
+// renderRow distributes width by weight after filtering out empty panels.
+// Stacked cells render their sub-panels vertically inside one column.
 func renderRow(row []panelSpec, contents map[string]string, titles map[string]string, termWidth int) string {
 	var active []panelSpec
 	for _, p := range row {

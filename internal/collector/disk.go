@@ -47,8 +47,7 @@ func (d *diskCollector) collectSpace() []DiskSnapshot {
 	return out
 }
 
-// collectIO returns per-device read/write throughput since the last call.
-// Rates are zero on the first call.
+// collectIO returns per-device I/O rates; zero on the first call (no prev sample).
 func (d *diskCollector) collectIO() []DiskIOSnapshot {
 	counters, err := disk.IOCounters()
 	if err != nil {
@@ -84,11 +83,9 @@ func normalizeDeviceName(device string) string {
 }
 
 // applyDiskRates computes interval rates from cumulative disk counters.
-// Counter rollback is treated as unavailable data for the interval.
+// Caller must pass elapsed > 0. Counter rollback is treated as unavailable
+// data for the interval.
 func applyDiskRates(snap *DiskIOSnapshot, prev, curr disk.IOCountersStat, elapsed float64) {
-	if elapsed <= 0 {
-		return
-	}
 	if curr.ReadBytes >= prev.ReadBytes {
 		snap.ReadRate = float64(curr.ReadBytes-prev.ReadBytes) / elapsed
 	}
@@ -97,14 +94,11 @@ func applyDiskRates(snap *DiskIOSnapshot, prev, curr disk.IOCountersStat, elapse
 	}
 
 	if curr.IoTime >= prev.IoTime {
-		elapsedMs := elapsed * 1000
-		if elapsedMs > 0 {
-			util := float64(curr.IoTime-prev.IoTime) / elapsedMs * 100
-			if util > 100 {
-				util = 100
-			}
-			snap.UtilPercent = util
+		util := float64(curr.IoTime-prev.IoTime) / (elapsed * 1000) * 100
+		if util > 100 {
+			util = 100
 		}
+		snap.UtilPercent = util
 	}
 
 	if curr.ReadCount >= prev.ReadCount && curr.WriteCount >= prev.WriteCount &&
