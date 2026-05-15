@@ -19,15 +19,12 @@ var virtualIfacePrefixes = []string{
 	"docker", "veth", "br-", "virbr", "dummy", "tunl",
 }
 
-// ShouldCollectFS returns true if the filesystem type represents real storage
-// worth monitoring.
+// ShouldCollectFS excludes kernel/container virtual filesystems.
 func ShouldCollectFS(fstype string) bool {
 	return !virtualFS[strings.ToLower(fstype)]
 }
 
-// shouldCollectInterface returns true if the interface is a physical or
-// meaningful network interface. Loopback and known virtual interfaces are
-// excluded.
+// shouldCollectInterface excludes loopback and known virtual interface prefixes.
 func shouldCollectInterface(name string) bool {
 	if name == "lo" {
 		return false

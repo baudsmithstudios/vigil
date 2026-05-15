@@ -6,9 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-15
+
 ### Changed
 
 - Internal cleanup: removed dead code, collapsed thin wrappers, and trimmed trivial doc comments
+- `vigil init` now detects SD/MMC block devices and writes relaxed per-device `disk_latency_ms` overrides (200 ms sustained over 5 ticks) alongside the 50 ms generic rule, so an SD card's spiky tail latency no longer triggers false alerts while other drives keep the tighter threshold
+
+### Fixed
+
+- A specific per-device alert rule (for example `disk_latency_ms:mmcblk0`) now shadows the matching generic rule for that key, so per-device overrides no longer double-fire alongside the generic rule
 
 ## [0.3.0] - 2026-05-09
 
@@ -60,7 +67,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ~20MB ARM64 Docker image; `docker compose up` one-liner deployment
 - Hardened container defaults: read-only root filesystem, non-root user, no extra capabilities
 
-[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/baudsmithstudios/vigil/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/baudsmithstudios/vigil/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/baudsmithstudios/vigil/releases/tag/v0.1.0

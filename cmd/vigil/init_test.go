@@ -140,20 +140,23 @@ func TestParseToggleInput(t *testing.T) {
 		name     string
 		input    string
 		count    int
-		expected map[int]bool
+		expected []int
 	}{
-		{"single", "1", 4, map[int]bool{0: true}},
-		{"multiple", "1 3", 4, map[int]bool{0: true, 2: true}},
-		{"out of range ignored", "1 5", 4, map[int]bool{0: true}},
-		{"empty confirms", "", 4, map[int]bool{}},
-		{"non-numeric ignored", "1 abc 3", 4, map[int]bool{0: true, 2: true}},
+		{"single", "1", 4, []int{0}},
+		{"multiple", "1 3", 4, []int{0, 2}},
+		{"out of range ignored", "1 5", 4, []int{0}},
+		{"empty confirms", "", 4, nil},
+		{"non-numeric ignored", "1 abc 3", 4, []int{0, 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseToggleInput(tt.input, tt.count)
-			for k, v := range tt.expected {
-				if got[k] != v {
-					t.Errorf("index %d: expected %v, got %v", k, v, got[k])
+			if len(got) != len(tt.expected) {
+				t.Fatalf("expected %d entries, got %d", len(tt.expected), len(got))
+			}
+			for _, idx := range tt.expected {
+				if _, ok := got[idx]; !ok {
+					t.Errorf("missing index %d", idx)
 				}
 			}
 		})
@@ -447,6 +450,84 @@ func TestInitDefaultAlerts_IncludeDiskIOMetrics(t *testing.T) {
 	}
 	if !metrics[metric.SDErrors] {
 		t.Error("expected sd_errors alert in defaults")
+	}
+}
+
+func TestInitDefaultAlerts_RelaxesSDLatencyThreshold(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	input := strings.Join([]string{
+		"",  // db path
+		"",  // CPU
+		"",  // mem
+		"",  // disk
+		"",  // optional sections
+		"y", // confirm
+	}, "\n") + "\n"
+
+	env := initEnv{sdDevices: []string{"mmcblk0"}}
+	if err := runInit(path, strings.NewReader(input), nil, env); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("invalid config: %v", err)
+	}
+
+	var generic, specific *config.Alert
+	for i := range cfg.Alerts {
+		a := &cfg.Alerts[i]
+		switch a.Metric {
+		case metric.DiskLatency:
+			generic = a
+		case metric.PrefixDiskLatency + "mmcblk0":
+			specific = a
+		}
+	}
+	if generic == nil {
+		t.Fatal("expected generic disk_latency_ms alert to still be written")
+	}
+	if generic.Threshold != 50.0 {
+		t.Errorf("generic disk_latency_ms threshold = %.0f, want 50", generic.Threshold)
+	}
+	if specific == nil {
+		t.Fatal("expected disk_latency_ms:mmcblk0 override alert")
+	}
+	if specific.Threshold != 200.0 {
+		t.Errorf("specific threshold = %.0f, want 200", specific.Threshold)
+	}
+	if specific.SustainedTicks != 5 {
+		t.Errorf("specific sustained_ticks = %d, want 5", specific.SustainedTicks)
+	}
+}
+
+func TestInitDefaultAlerts_NoSDOverrideWhenNoSDDetected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	input := strings.Join([]string{
+		"",  // db path
+		"",  // CPU
+		"",  // mem
+		"",  // disk
+		"",  // optional sections
+		"y", // confirm
+	}, "\n") + "\n"
+
+	if err := runInit(path, strings.NewReader(input), nil, initEnv{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("invalid config: %v", err)
+	}
+	for _, a := range cfg.Alerts {
+		if strings.HasPrefix(a.Metric, metric.PrefixDiskLatency) {
+			t.Errorf("did not expect any disk_latency_ms:* rules, got %q", a.Metric)
+		}
 	}
 }
 

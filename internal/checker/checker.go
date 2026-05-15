@@ -13,7 +13,6 @@ import (
 
 const requestTimeout = 10 * time.Second
 
-// ServiceStatus holds the result of a single health check.
 type ServiceStatus struct {
 	Name       string
 	CheckType  string // "http" or "tcp"
@@ -65,13 +64,12 @@ func (sc *ServiceChecker) Run(ctx context.Context) {
 	}
 }
 
-// CheckOnce executes one health-check cycle and returns its results.
 func (sc *ServiceChecker) CheckOnce() ([]ServiceStatus, time.Time) {
 	sc.runCycle()
 	return sc.Snapshot()
 }
 
-// Snapshot returns the latest check results and cycle completion time atomically.
+// Snapshot returns the latest results and cycle completion time as a consistent pair.
 func (sc *ServiceChecker) Snapshot() ([]ServiceStatus, time.Time) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()

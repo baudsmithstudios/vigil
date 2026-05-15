@@ -84,7 +84,7 @@ type duration struct {
 	time.Duration
 }
 
-// TestDuration creates a duration value for use in tests.
+// TestDuration constructs a duration for tests, since the type is unexported.
 func TestDuration(d time.Duration) duration {
 	return duration{d}
 }
@@ -95,7 +95,6 @@ func (d *duration) UnmarshalText(text []byte) error {
 	return err
 }
 
-// Defaults returns a Config pre-populated with sane defaults.
 func Defaults() Config {
 	return Config{
 		DBPath:    "/data/vigil.db",
@@ -239,7 +238,6 @@ func (c Config) validate() error {
 	}
 	switch c.Theme {
 	case "", "auto", "dark", "light":
-		// valid
 	default:
 		return fmt.Errorf("theme must be auto, dark, or light, got %q", c.Theme)
 	}

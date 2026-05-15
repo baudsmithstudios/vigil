@@ -8,7 +8,6 @@ import (
 	"vigil/internal/config"
 )
 
-// Runner polls all metrics on a fixed interval and emits Snapshots.
 type Runner struct {
 	interval    time.Duration
 	cpu         *cpuCollector
@@ -25,10 +24,9 @@ type Runner struct {
 	out         chan Snapshot
 }
 
-// New creates a Runner that emits snapshots on the returned channel.
-// If dockerSocket is non-empty, Docker container monitoring is enabled.
-// If mountChecks is non-empty, mount point monitoring is enabled.
-// If services is non-nil, service health check results are included in snapshots.
+// New returns a Runner and the channel it emits Snapshots on. Each subsystem
+// is enabled by the corresponding argument: non-empty dockerSocket, non-empty
+// mountChecks, or non-nil services.
 func New(interval time.Duration, dockerSocket string, mountChecks []config.MountCheck, services *checker.ServiceChecker) (*Runner, <-chan Snapshot) {
 	ch := make(chan Snapshot, 4)
 	r := &Runner{
@@ -49,7 +47,7 @@ func New(interval time.Duration, dockerSocket string, mountChecks []config.Mount
 	return r, ch
 }
 
-// Run starts the collection loop. It blocks until ctx is cancelled.
+// Run blocks until ctx is cancelled, ticking once per interval.
 func (r *Runner) Run(ctx context.Context) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -70,15 +68,16 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
-// Collect gathers one snapshot without starting the polling loop.
+// Collect gathers one snapshot synchronously (used by --once mode).
 func (r *Runner) Collect(t time.Time) Snapshot {
 	mem := collectMemory()
 	if mem.SwapReady {
 		if r.swapReady {
-			elapsed := t.Sub(r.prevSwapAt).Seconds()
-			mem.SwapInRate, mem.SwapOutRate = applySwapRates(
-				r.prevSwapIn, r.prevSwapOut, mem.SwapInBytes, mem.SwapOutBytes, elapsed,
-			)
+			if elapsed := t.Sub(r.prevSwapAt).Seconds(); elapsed > 0 {
+				mem.SwapInRate, mem.SwapOutRate = applySwapRates(
+					r.prevSwapIn, r.prevSwapOut, mem.SwapInBytes, mem.SwapOutBytes, elapsed,
+				)
+			}
 		}
 		r.prevSwapIn = mem.SwapInBytes
 		r.prevSwapOut = mem.SwapOutBytes

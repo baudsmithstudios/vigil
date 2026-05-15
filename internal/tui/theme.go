@@ -2,9 +2,7 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Theme defines the semantic color roles for the dashboard.
 type Theme struct {
-	Base      lipgloss.Color
 	Surface   lipgloss.Color
 	Border    lipgloss.Color
 	Divider   lipgloss.Color
@@ -18,7 +16,6 @@ type Theme struct {
 }
 
 var DarkTheme = Theme{
-	Base:      "232",
 	Surface:   "233",
 	Border:    "72",
 	Divider:   "23",
@@ -32,7 +29,6 @@ var DarkTheme = Theme{
 }
 
 var LightTheme = Theme{
-	Base:      "231",
 	Surface:   "254",
 	Border:    "29",
 	Divider:   "72",
@@ -45,9 +41,8 @@ var LightTheme = Theme{
 	Critical:  "124",
 }
 
-// ResolveTheme returns the theme for the given config setting.
-// For "auto", it queries the terminal background color; in non-terminal
-// environments (e.g. tests) it defaults to dark.
+// ResolveTheme returns the named theme; "auto" or empty queries the terminal
+// background and falls back to DarkTheme in non-terminal environments.
 func ResolveTheme(setting string) Theme {
 	switch setting {
 	case "light":
@@ -55,7 +50,6 @@ func ResolveTheme(setting string) Theme {
 	case "dark":
 		return DarkTheme
 	default:
-		// "auto" or empty: query terminal, default to dark.
 		if lipgloss.HasDarkBackground() {
 			return DarkTheme
 		}

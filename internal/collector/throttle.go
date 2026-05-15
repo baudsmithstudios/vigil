@@ -11,7 +11,7 @@ import (
 
 const throttlePath = "/sys/devices/platform/soc/soc:firmware/get_throttled"
 
-// ThrottleSnapshot holds decoded Pi throttle/voltage flags.
+// ThrottleSnapshot is the decoded Pi throttle/voltage bitmask.
 type ThrottleSnapshot struct {
 	Raw                    uint32
 	UnderVoltage           bool // bit 0
@@ -47,7 +47,7 @@ func (t ThrottleSnapshot) Status() string {
 	return "OK"
 }
 
-// ActiveMessage returns a human-readable description of active flags.
+// ActiveMessage joins the active flag names into a human-readable summary.
 func (t ThrottleSnapshot) ActiveMessage() string {
 	var parts []string
 	if t.UnderVoltage {

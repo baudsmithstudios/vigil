@@ -128,7 +128,6 @@ func (d *dockerCollector) collect() []ContainerSnapshot {
 	return snapshots
 }
 
-// isValidContainerID checks that a container ID contains only hex characters.
 var validContainerID = regexp.MustCompile(`^[a-f0-9]+$`)
 
 func isValidContainerID(id string) bool {
@@ -169,7 +168,7 @@ func (d *dockerCollector) getStats(containerID string) (*dockerStats, error) {
 	return &stats, nil
 }
 
-// calculateCPUPercent computes CPU % from the delta between precpu and cpu stats.
+// calculateCPUPercent uses the (cpu - precpu) / (system - presystem) ratio, scaled by online CPUs.
 func calculateCPUPercent(stats *dockerStats) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)

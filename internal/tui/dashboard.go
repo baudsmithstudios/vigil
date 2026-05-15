@@ -178,7 +178,6 @@ func renderHeader(width int, snap collector.Snapshot, alertCount int) string {
 	return headerStyle.Render(title + strings.Repeat(" ", gap) + help)
 }
 
-// formatUptime converts seconds to a compact human-readable duration.
 func formatUptime(sec uint64) string {
 	days := sec / 86400
 	hours := (sec % 86400) / 3600
@@ -192,7 +191,7 @@ func formatUptime(sec uint64) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-// gaugeWidth calculates the gauge bar width from the available inner width.
+// gaugeWidth leaves room for the label/value text alongside the bar.
 func gaugeWidth(innerW int) int {
 	w := innerW - 22
 	if w < 8 {
@@ -479,8 +478,7 @@ func renderAlertContent(alerts []alert.State, cursor int, muted bool) string {
 	return sb.String()
 }
 
-// renderTemp returns the temperature value styled by heat level.
-// Thresholds tuned for Raspberry Pi: normal <50°C, warm 50-70°C, hot ≥70°C.
+// renderTemp colors by heat level; thresholds tuned for Pi: <50 normal, 50-70 warm, ≥70 hot.
 func renderTemp(c float64) string {
 	s := fmt.Sprintf("%.1f", c)
 	switch {
@@ -493,9 +491,7 @@ func renderTemp(c float64) string {
 	}
 }
 
-// renderGauge draws a color-coded progress bar.
-//
-// The filled portion is colored green/yellow/red based on severity thresholds.
+// renderGauge draws a bar colored green/yellow/red by severity (<70/70-90/≥90 %).
 func renderGauge(percent float64, width int) string {
 	if percent < 0 {
 		percent = 0

@@ -35,7 +35,6 @@ func TestResolveTheme_AutoReturnsValidTheme(t *testing.T) {
 func TestDarkTheme_HasAllRoles(t *testing.T) {
 	// Verify no role is empty.
 	colors := map[string]lipgloss.Color{
-		"Base":      DarkTheme.Base,
 		"Surface":   DarkTheme.Surface,
 		"Border":    DarkTheme.Border,
 		"Divider":   DarkTheme.Divider,
@@ -67,7 +66,6 @@ func TestBuildStyles_SetsAccentOnAppTitle(t *testing.T) {
 
 func TestLightTheme_HasAllRoles(t *testing.T) {
 	colors := map[string]lipgloss.Color{
-		"Base":      LightTheme.Base,
 		"Surface":   LightTheme.Surface,
 		"Border":    LightTheme.Border,
 		"Divider":   LightTheme.Divider,
