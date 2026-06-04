@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Raspberry%20Pi-A22846?style=flat&logo=raspberrypi&logoColor=white" alt="Raspberry Pi">
   <a href="https://github.com/baudsmithstudios/vigil/releases/latest"><img src="https://img.shields.io/github/v/release/baudsmithstudios/vigil?label=version" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5faf87.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/go-1.26.1-00ADD8.svg" alt="Go 1.26.1">
+  <img src="https://img.shields.io/badge/go-1.26-00ADD8.svg" alt="Go 1.26">
   <img src="https://img.shields.io/badge/platform-Linux%20%2F%20ARM64-333333.svg" alt="Linux / ARM64">
   <img src="https://img.shields.io/badge/docker-%7E20MB-2496ED.svg" alt="Docker ~20MB">
 </p>
@@ -392,7 +392,7 @@ Vigil targets a specific niche: a single-binary terminal monitor with built-in s
 
 | Component | Library | Description |
 |---|---|---|
-| **Language** | [Go](https://github.com/golang/go) | 1.26.1 |
+| **Language** | [Go](https://github.com/golang/go) | 1.26 |
 | **TUI framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Terminal UI based on The Elm Architecture |
 | **Terminal styling** | [Lip Gloss](https://github.com/charmbracelet/lipgloss) | Declarative terminal layout and styling |
 | **System metrics** | [gopsutil](https://github.com/shirou/gopsutil) | Cross-platform process and system metrics |
