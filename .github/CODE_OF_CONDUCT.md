@@ -21,7 +21,7 @@ We are committed to making participation in this project a harassment-free exper
 
 ## Enforcement
 
-Project maintainers may remove, edit, or reject comments, commits, issues, and other contributions that violate this code of conduct. Instances of abusive behavior may be reported by opening an issue or contacting the maintainer directly.
+Project maintainers may remove, edit, or reject comments, commits, issues, and other contributions that violate this code of conduct. Instances of abusive behavior may be reported privately by contacting the maintainer directly. Please do not report violations in a public issue.
 
 ## Attribution
 
