@@ -15,6 +15,7 @@ Thanks for your interest in contributing! Vigil is a small project and contribut
 - Keep changes focused — one feature or fix per PR
 - Include tests for new functionality
 - Make sure `go test ./...` and `go vet ./...` pass before submitting
+- CI also runs `govulncheck`; you can check locally with `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
 
 ## Reporting bugs
 

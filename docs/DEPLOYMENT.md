@@ -78,8 +78,6 @@ volumes:
   - /your/mount/point/vigil:/data
 ```
 
-> **Note:** The UUID-based directory in `/srv/` that contains your data will have the full UUID. A shorter path at the same prefix is likely an empty directory — use `lsblk` to confirm the real mount point before editing the compose file.
-
 ## Viewing the Dashboard
 
 The container runs in TUI mode by default. When started with `docker compose up -d` it runs detached in the background — attach to open the dashboard:
