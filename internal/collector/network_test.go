@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"math"
 	"testing"
 
 	"github.com/shirou/gopsutil/v3/net"
@@ -29,22 +28,9 @@ func TestApplyRates_ComputesDropAndErrorRates(t *testing.T) {
 	snap := NetSnapshot{}
 	applyRates(&snap, prev, curr, elapsed)
 
-	if math.IsNaN(snap.DropRate) || math.IsInf(snap.DropRate, 0) {
-		t.Errorf("DropRate is NaN/Inf: %f", snap.DropRate)
-	}
-	if snap.DropRate <= 0 {
-		t.Errorf("expected positive DropRate, got %f", snap.DropRate)
-	}
 	// (20+15) - (10+5) = 20 drops over 2s = 10/s
 	if snap.DropRate != 10.0 {
 		t.Errorf("expected DropRate 10.0, got %f", snap.DropRate)
-	}
-
-	if math.IsNaN(snap.ErrRate) || math.IsInf(snap.ErrRate, 0) {
-		t.Errorf("ErrRate is NaN/Inf: %f", snap.ErrRate)
-	}
-	if snap.ErrRate < 0 {
-		t.Errorf("ErrRate should never be negative, got %f", snap.ErrRate)
 	}
 	// (7+4) - (2+1) = 8 errors over 2s = 4/s
 	if snap.ErrRate != 4.0 {

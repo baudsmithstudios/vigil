@@ -130,13 +130,13 @@ func main() {
 	}
 
 	if *headless {
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
+		runHeadless(ctx, db, cfg, snapshots, alertEngine, restoredAlerts, notifier, mountHandler, serviceHandler)
 		return
 	}
 
 	if !isTerminal(os.Stdout) {
 		log.Println("stdout is not a TTY, running in headless mode")
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler)
+		runHeadless(ctx, db, cfg, snapshots, alertEngine, restoredAlerts, notifier, mountHandler, serviceHandler)
 		return
 	}
 
@@ -179,14 +179,6 @@ func runTUI(
 		model.SetAlerts(restoredAlerts)
 	}
 
-	throttleFiring := false
-	for _, a := range restoredAlerts {
-		if a.Name == metric.AlertThrottle {
-			throttleFiring = true
-			break
-		}
-	}
-
 	p := tea.NewProgram(
 		model,
 		tea.WithAltScreen(),
@@ -201,7 +193,7 @@ func runTUI(
 			flushInterval:   5 * time.Minute,
 			purgeInterval:   1 * time.Hour,
 			retention:       cfg.Retention.Duration,
-			throttleFiring:  throttleFiring,
+			throttleFiring:  throttleAlertActive(restoredAlerts),
 			onSnapshot: func(snap collector.Snapshot) {
 				for i, m := range snap.Mounts {
 					if mountHandler.IsUnstable(m.Path) {
@@ -230,28 +222,30 @@ func runHeadless(
 	cfg config.Config,
 	snapshots <-chan collector.Snapshot,
 	eng *alert.Engine,
+	restoredAlerts []alert.State,
 	n notify.Notifier,
 	mountHandler *alert.MountAlertHandler,
 	serviceHandler *alert.ServiceAlertHandler,
 ) {
-	throttleFiring := false
-	if persisted, err := db.ActiveAlerts(); err == nil {
-		for _, a := range persisted {
-			if a.Name == metric.AlertThrottle {
-				throttleFiring = true
-				break
-			}
-		}
-	}
-
 	runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, loopConfig{
 		writeBufCap:     256,
 		containerBufCap: 64,
 		flushInterval:   30 * time.Second,
 		purgeInterval:   5 * time.Minute,
 		retention:       cfg.Retention.Duration,
-		throttleFiring:  throttleFiring,
+		throttleFiring:  throttleAlertActive(restoredAlerts),
 	})
+}
+
+// throttleAlertActive reports whether the throttle alert (tracked outside the
+// alert engine) is among the restored alerts.
+func throttleAlertActive(states []alert.State) bool {
+	for _, s := range states {
+		if s.Name == metric.AlertThrottle {
+			return true
+		}
+	}
+	return false
 }
 
 func runLoop(
@@ -288,8 +282,7 @@ func runLoop(
 			}
 
 			values := snapshotMetricValues(snap)
-			fired := eng.Evaluate(values)
-			resolved := eng.Resolved(values)
+			fired, resolved := eng.Evaluate(values)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "alert")
 			handleThrottleAlert(ctx, snap, &throttleFiring, db, lc.onAlert, n)
 			handleMountAlerts(ctx, snap, mountHandler, db, lc.onAlert, n)

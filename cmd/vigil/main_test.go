@@ -259,59 +259,25 @@ func TestRunOnceJSONDoesNotOpenDatabase(t *testing.T) {
 	}
 }
 
-func TestSnapshotToValues_NetDropsAndErrors(t *testing.T) {
+func TestSnapshotToValues_NetworkMetrics(t *testing.T) {
 	snap := collector.Snapshot{
 		Network: []collector.NetSnapshot{
-			{Interface: "eth0", DropRate: 5.0, ErrRate: 2.0},
+			{Interface: "eth0", SendRate: 1024.0, RecvRate: 2048.0, DropRate: 5.0, ErrRate: 2.0},
 			{Interface: "wlan0", DropRate: 0.0, ErrRate: 0.0},
 		},
 	}
 	values := snapshotMetricValues(snap)
 
-	if v, ok := values[metric.PrefixNetDrops+"eth0"]; !ok || v != 5.0 {
-		t.Errorf("expected net_drops:eth0 = 5.0, got %v (present=%v)", v, ok)
-	}
-	if v, ok := values[metric.PrefixNetErrors+"eth0"]; !ok || v != 2.0 {
-		t.Errorf("expected net_errors:eth0 = 2.0, got %v (present=%v)", v, ok)
-	}
-	if v, ok := values[metric.PrefixNetDrops+"wlan0"]; !ok || v != 0.0 {
-		t.Errorf("expected net_drops:wlan0 = 0.0, got %v (present=%v)", v, ok)
-	}
-}
-
-func TestAppendReadings_NetworkMetrics(t *testing.T) {
-	ts := time.Now()
-	snap := collector.Snapshot{
-		Timestamp: ts,
-		Network: []collector.NetSnapshot{
-			{Interface: "eth0", SendRate: 1024.0, RecvRate: 2048.0, DropRate: 3.0, ErrRate: 1.5},
-			{Interface: "wlan0", SendRate: 512.0, RecvRate: 256.0, DropRate: 0.0, ErrRate: 0.0},
-		},
-	}
-	buf := appendReadings(nil, snap)
-
 	want := map[string]float64{
-		metric.PrefixNetSend + "eth0":    1024.0,
-		metric.PrefixNetRecv + "eth0":    2048.0,
-		metric.PrefixNetDrops + "eth0":   3.0,
-		metric.PrefixNetErrors + "eth0":  1.5,
-		metric.PrefixNetSend + "wlan0":   512.0,
-		metric.PrefixNetRecv + "wlan0":   256.0,
-		metric.PrefixNetDrops + "wlan0":  0.0,
-		metric.PrefixNetErrors + "wlan0": 0.0,
+		metric.PrefixNetSend + "eth0":   1024.0,
+		metric.PrefixNetRecv + "eth0":   2048.0,
+		metric.PrefixNetDrops + "eth0":  5.0,
+		metric.PrefixNetErrors + "eth0": 2.0,
+		metric.PrefixNetDrops + "wlan0": 0.0,
 	}
-
-	found := make(map[string]float64)
-	for _, r := range buf {
-		if _, ok := want[r.Metric]; ok {
-			found[r.Metric] = r.Value
-		}
-	}
-	for k, v := range want {
-		if got, ok := found[k]; !ok {
-			t.Errorf("missing metric %q", k)
-		} else if got != v {
-			t.Errorf("metric %q: expected %.1f, got %.1f", k, v, got)
+	for k, wantV := range want {
+		if v, ok := values[k]; !ok || v != wantV {
+			t.Errorf("expected %s = %v, got %v (present=%v)", k, wantV, v, ok)
 		}
 	}
 }
@@ -322,7 +288,7 @@ func TestSnapshotToValues_DiskIOMetrics(t *testing.T) {
 			{MountPoint: "/", Device: "mmcblk0p2"},
 		},
 		DiskIO: []collector.DiskIOSnapshot{
-			{Device: "mmcblk0", UtilPercent: 92.5, LatencyMs: 34.0},
+			{Device: "mmcblk0", ReadRate: 4096.0, WriteRate: 8192.0, UtilPercent: 92.5, LatencyMs: 34.0},
 		},
 		Memory: collector.MemSnapshot{
 			SwapInRate:  512.0,
@@ -334,65 +300,41 @@ func TestSnapshotToValues_DiskIOMetrics(t *testing.T) {
 	}
 	values := snapshotMetricValues(snap)
 
-	if got := values[metric.PrefixDiskUtil+"mmcblk0"]; got != 92.5 {
-		t.Errorf("expected disk_util:mmcblk0 = 92.5, got %v", got)
-	}
-	if got := values[metric.PrefixDiskLatency+"mmcblk0"]; got != 34.0 {
-		t.Errorf("expected disk_latency_ms:mmcblk0 = 34.0, got %v", got)
-	}
-	if got := values[metric.SwapIn]; got != 512.0 {
-		t.Errorf("expected swap_in = 512.0, got %v", got)
-	}
-	if got := values[metric.SwapOut]; got != 1024.0 {
-		t.Errorf("expected swap_out = 1024.0, got %v", got)
-	}
-	if got := values[metric.PrefixSDErrors+"mmc0"]; got != 3.0 {
-		t.Errorf("expected sd_errors:mmc0 = 3.0, got %v", got)
-	}
-}
-
-func TestAppendReadings_DiskIOMetrics(t *testing.T) {
-	ts := time.Now()
-	snap := collector.Snapshot{
-		Timestamp: ts,
-		Disks: []collector.DiskSnapshot{
-			{MountPoint: "/", Device: "mmcblk0p2"},
-		},
-		DiskIO: []collector.DiskIOSnapshot{
-			{Device: "mmcblk0", ReadRate: 4096.0, WriteRate: 8192.0, UtilPercent: 88.0, LatencyMs: 12.5},
-		},
-		Memory: collector.MemSnapshot{
-			SwapInRate:  64.0,
-			SwapOutRate: 32.0,
-		},
-		SDErrors: []collector.SDErrorSnapshot{
-			{Host: "mmc0", Delta: 1},
-		},
-	}
-	buf := appendReadings(nil, snap)
-
 	want := map[string]float64{
 		metric.PrefixDiskRead + "mmcblk0":    4096.0,
 		metric.PrefixDiskWrite + "mmcblk0":   8192.0,
-		metric.PrefixDiskUtil + "mmcblk0":    88.0,
-		metric.PrefixDiskLatency + "mmcblk0": 12.5,
-		metric.SwapIn:                        64.0,
-		metric.SwapOut:                       32.0,
-		metric.PrefixSDErrors + "mmc0":       1.0,
+		metric.PrefixDiskUtil + "mmcblk0":    92.5,
+		metric.PrefixDiskLatency + "mmcblk0": 34.0,
+		metric.SwapIn:                        512.0,
+		metric.SwapOut:                       1024.0,
+		metric.PrefixSDErrors + "mmc0":       3.0,
 	}
-	found := make(map[string]float64)
-	for _, r := range buf {
-		if _, ok := want[r.Metric]; ok {
-			found[r.Metric] = r.Value
+	for k, wantV := range want {
+		if got := values[k]; got != wantV {
+			t.Errorf("expected %s = %v, got %v", k, wantV, got)
 		}
 	}
-	for k, v := range want {
-		if got, ok := found[k]; !ok {
-			t.Errorf("missing metric %q", k)
-		} else if got != v {
-			t.Errorf("metric %q: expected %.1f, got %.1f", k, v, got)
+}
+
+func TestAppendReadings_MapsSnapshotValues(t *testing.T) {
+	ts := time.Now()
+	snap := collector.Snapshot{
+		Timestamp: ts,
+		Memory:    collector.MemSnapshot{Percent: 42.0},
+	}
+
+	for _, r := range appendReadings(nil, snap) {
+		if r.Metric == metric.MemPercent {
+			if r.Value != 42.0 {
+				t.Fatalf("expected mem_percent 42.0, got %v", r.Value)
+			}
+			if !r.Timestamp.Equal(ts) {
+				t.Fatalf("expected snapshot timestamp, got %v", r.Timestamp)
+			}
+			return
 		}
 	}
+	t.Fatal("expected mem_percent reading in buffer")
 }
 
 func TestSnapshotToValues_DiskIOMetricsFilteredToTrackedDevices(t *testing.T) {
