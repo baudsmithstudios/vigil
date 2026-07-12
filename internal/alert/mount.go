@@ -13,13 +13,13 @@ import (
 type mountAlertStatus int
 
 const (
-	mountOK         mountAlertStatus = iota
+	mountOK mountAlertStatus = iota
 	mountDebouncing
 	mountFiring
 )
 
 type mountState struct {
-	status      mountAlertStatus
+	status       mountAlertStatus
 	debounceLeft int
 
 	flapCount  int

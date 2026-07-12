@@ -64,9 +64,8 @@ func (sc *ServiceChecker) Run(ctx context.Context) {
 	}
 }
 
-func (sc *ServiceChecker) CheckOnce() ([]ServiceStatus, time.Time) {
+func (sc *ServiceChecker) CheckOnce() {
 	sc.runCycle()
-	return sc.Snapshot()
 }
 
 // Snapshot returns the latest results and cycle completion time as a consistent pair.

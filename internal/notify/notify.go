@@ -64,7 +64,6 @@ func (m Multi) Send(ctx context.Context, a alert.State, resolved bool) error {
 	var errs []string
 	for _, n := range m {
 		if err := n.Send(ctx, a, resolved); err != nil {
-			log.Printf("notify error: %v", err)
 			errs = append(errs, err.Error())
 		}
 	}

@@ -278,16 +278,12 @@ func runLoop(
 	for {
 		select {
 		case <-ctx.Done():
-			flushReadings(db, writeBuf)
-			flushContainerReadings(db, containerBuf)
-			flushServiceCheckReadings(db, serviceBuf)
+			flushAll(db, writeBuf, containerBuf, serviceBuf)
 			return
 
 		case snap, ok := <-snapshots:
 			if !ok {
-				flushReadings(db, writeBuf)
-				flushContainerReadings(db, containerBuf)
-				flushServiceCheckReadings(db, serviceBuf)
+				flushAll(db, writeBuf, containerBuf, serviceBuf)
 				return
 			}
 
@@ -323,11 +319,9 @@ func runLoop(
 			containerBuf = appendContainerReadings(containerBuf, snap)
 
 		case <-flushTicker.C:
-			flushReadings(db, writeBuf)
+			flushAll(db, writeBuf, containerBuf, serviceBuf)
 			writeBuf = writeBuf[:0]
-			flushContainerReadings(db, containerBuf)
 			containerBuf = containerBuf[:0]
-			flushServiceCheckReadings(db, serviceBuf)
 			serviceBuf = serviceBuf[:0]
 
 		case <-purgeTicker.C:
@@ -622,6 +616,12 @@ func isTrackedDiskDevice(device string, tracked map[string]struct{}) bool {
 		return ok
 	}
 	return false
+}
+
+func flushAll(db *store.DB, readings []store.Reading, containers []store.ContainerReading, services []store.ServiceCheckReading) {
+	flushReadings(db, readings)
+	flushContainerReadings(db, containers)
+	flushServiceCheckReadings(db, services)
 }
 
 func flushReadings(db *store.DB, buf []store.Reading) {

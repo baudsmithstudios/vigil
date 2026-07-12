@@ -269,4 +269,3 @@ func TestWriteAndPurgeServiceCheckReadings(t *testing.T) {
 		t.Errorf("expected 0 rows after purge, got %d", count)
 	}
 }
-

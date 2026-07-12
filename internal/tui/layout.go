@@ -197,7 +197,7 @@ func renderPanel(title, content string, width int) string {
 	// Content with side borders and padding.
 	side := lipgloss.NewStyle().Foreground(borderFg).Render(border.Left)
 	sideR := lipgloss.NewStyle().Foreground(borderFg).Render(border.Right)
-	pad := " " // 1 char padding on each side
+	pad := " "          // 1 char padding on each side
 	innerW := width - 2 // subtract padding
 
 	var body strings.Builder
