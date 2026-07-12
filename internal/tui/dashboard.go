@@ -215,7 +215,7 @@ func renderCPUContent(cpu collector.CPUSnapshot, innerW int) string {
 		sb.WriteString(valueStyle.Render(fmt.Sprintf(" %5.1f", cpu.PercentTotal)))
 		sb.WriteString(unitStyle.Render("%\n"))
 
-		// Hide per-core rows on narrow panels — gaugeW/2 becomes too small to be useful.
+		// Hide per-core rows on narrow panels — the bars get too small to read.
 		if innerW >= 40 {
 			for i, p := range cpu.PercentPerCore {
 				sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-6s", fmt.Sprintf("core%d", i))))

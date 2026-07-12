@@ -258,30 +258,33 @@ func TestInitRefusesExistingConfig(t *testing.T) {
 	}
 }
 
-func TestInitWritesValidConfig(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-
-	// Simulate: accept default db path, accept default CPU/mem/disk thresholds,
-	// no optional sections selected, confirm write.
+// runDefaultInit runs the init flow accepting every default and returns the
+// generated config. Only valid for envs without thermal zones, which add a
+// temperature prompt.
+func runDefaultInit(t *testing.T, env initEnv) config.Config {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
 	input := strings.Join([]string{
-		"",  // db path (accept default)
-		"",  // CPU threshold (accept default)
-		"",  // mem threshold (accept default)
-		"",  // disk threshold (accept default)
-		"",  // optional sections (none selected, enter to confirm)
+		"",  // db path
+		"",  // CPU threshold
+		"",  // mem threshold
+		"",  // disk threshold
+		"",  // optional sections
 		"y", // confirm write
 	}, "\n") + "\n"
 
-	err := runInit(path, strings.NewReader(input), nil, initEnv{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err := runInit(path, strings.NewReader(input), nil, env); err != nil {
+		t.Fatalf("runInit: %v", err)
 	}
-
 	cfg, err := config.Load(path)
 	if err != nil {
 		t.Fatalf("generated config is invalid: %v", err)
 	}
+	return cfg
+}
+
+func TestInitWritesValidConfig(t *testing.T) {
+	cfg := runDefaultInit(t, initEnv{})
 	if len(cfg.Alerts) == 0 {
 		t.Fatal("expected default alerts to be generated")
 	}
@@ -324,30 +327,8 @@ func TestBuildConfigTOML_IncludesTheme(t *testing.T) {
 }
 
 func TestInitDefaultThresholds_PiTuned(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	cfg := runDefaultInit(t, initEnv{})
 
-	// Accept all defaults (empty input for each prompt), no optional sections, confirm write.
-	input := strings.Join([]string{
-		"",  // db path
-		"",  // CPU threshold (accept default)
-		"",  // mem threshold (accept default)
-		"",  // disk threshold (accept default)
-		"",  // optional sections (none)
-		"y", // confirm
-	}, "\n") + "\n"
-
-	err := runInit(path, strings.NewReader(input), nil, initEnv{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("invalid config: %v", err)
-	}
-
-	// Check Pi-tuned defaults.
 	thresholds := make(map[string]float64)
 	for _, a := range cfg.Alerts {
 		thresholds[a.Metric] = a.Threshold
@@ -404,27 +385,7 @@ func TestInitDefaultThresholds_TempPiTuned(t *testing.T) {
 }
 
 func TestInitDefaultAlerts_IncludeDiskIOMetrics(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-
-	input := strings.Join([]string{
-		"",  // db path
-		"",  // CPU threshold
-		"",  // mem threshold
-		"",  // disk threshold
-		"",  // optional sections
-		"y", // confirm
-	}, "\n") + "\n"
-
-	err := runInit(path, strings.NewReader(input), nil, initEnv{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("invalid config: %v", err)
-	}
+	cfg := runDefaultInit(t, initEnv{})
 
 	metrics := make(map[string]bool)
 	for _, a := range cfg.Alerts {
@@ -454,27 +415,7 @@ func TestInitDefaultAlerts_IncludeDiskIOMetrics(t *testing.T) {
 }
 
 func TestInitDefaultAlerts_RelaxesSDLatencyThreshold(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-
-	input := strings.Join([]string{
-		"",  // db path
-		"",  // CPU
-		"",  // mem
-		"",  // disk
-		"",  // optional sections
-		"y", // confirm
-	}, "\n") + "\n"
-
-	env := initEnv{sdDevices: []string{"mmcblk0"}}
-	if err := runInit(path, strings.NewReader(input), nil, env); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("invalid config: %v", err)
-	}
+	cfg := runDefaultInit(t, initEnv{sdDevices: []string{"mmcblk0"}})
 
 	var generic, specific *config.Alert
 	for i := range cfg.Alerts {
@@ -504,57 +445,11 @@ func TestInitDefaultAlerts_RelaxesSDLatencyThreshold(t *testing.T) {
 }
 
 func TestInitDefaultAlerts_NoSDOverrideWhenNoSDDetected(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-
-	input := strings.Join([]string{
-		"",  // db path
-		"",  // CPU
-		"",  // mem
-		"",  // disk
-		"",  // optional sections
-		"y", // confirm
-	}, "\n") + "\n"
-
-	if err := runInit(path, strings.NewReader(input), nil, initEnv{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("invalid config: %v", err)
-	}
+	cfg := runDefaultInit(t, initEnv{})
 	for _, a := range cfg.Alerts {
 		if strings.HasPrefix(a.Metric, metric.PrefixDiskLatency) {
 			t.Errorf("did not expect any disk_latency_ms:* rules, got %q", a.Metric)
 		}
-	}
-}
-
-func TestInitGeneratedConfig_HasThemeAuto(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-
-	input := strings.Join([]string{
-		"",  // db path
-		"",  // CPU
-		"",  // mem
-		"",  // disk
-		"",  // optional sections
-		"y", // confirm
-	}, "\n") + "\n"
-
-	err := runInit(path, strings.NewReader(input), nil, initEnv{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read config: %v", err)
-	}
-	if !strings.Contains(string(data), `theme = "auto"`) {
-		t.Error("expected theme = auto in generated config")
 	}
 }
 

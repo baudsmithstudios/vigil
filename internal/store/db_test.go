@@ -148,7 +148,6 @@ func TestDB_DismissAlert(t *testing.T) {
 		t.Fatalf("DismissAlert: %v", err)
 	}
 
-	// Dismissed alert should not appear in active alerts.
 	alerts, err := db.ActiveAlerts()
 	if err != nil {
 		t.Fatal(err)

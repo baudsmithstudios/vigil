@@ -37,7 +37,6 @@ func TestModel_AlertFireAndResolve(t *testing.T) {
 func TestModel_AlertCursorClampsOnDismiss(t *testing.T) {
 	m := New("dark", nil, nil)
 
-	// Fire 3 alerts.
 	result, _ := m.Update(AlertMsg{Fired: []alert.State{
 		{Name: "a", Message: "a"},
 		{Name: "b", Message: "b"},
@@ -85,14 +84,12 @@ func TestModel_QuitOnQ(t *testing.T) {
 func TestModel_HelpToggle(t *testing.T) {
 	m := New("dark", nil, nil)
 
-	// ? opens help
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
 	m = result.(Model)
 	if !m.showHelp {
 		t.Error("expected showHelp=true after pressing ?")
 	}
 
-	// ? closes help
 	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
 	m = result.(Model)
 	if m.showHelp {
@@ -172,11 +169,9 @@ func TestModel_QuitWorksWithHelp(t *testing.T) {
 func TestModel_HelpViewRenders(t *testing.T) {
 	m := New("dark", nil, nil)
 
-	// Simulate terminal resize
 	result, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = result.(Model)
 
-	// Toggle help on
 	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
 	m = result.(Model)
 

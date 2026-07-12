@@ -237,8 +237,8 @@ func runHeadless(
 	})
 }
 
-// throttleAlertActive reports whether a restored alert is the throttle alert,
-// which is tracked outside the alert engine.
+// throttleAlertActive reports whether the throttle alert (tracked outside the
+// alert engine) is among the restored alerts.
 func throttleAlertActive(states []alert.State) bool {
 	for _, s := range states {
 		if s.Name == metric.AlertThrottle {

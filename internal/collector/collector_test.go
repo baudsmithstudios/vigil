@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// TestCPUCollector_FirstTickNotReady verifies the CPU collector returns
-// Ready=false on the first invocation (gopsutil needs two calls for a delta).
+// gopsutil needs two calls to compute a delta, so the first tick is never Ready.
 func TestCPUCollector_FirstTickNotReady(t *testing.T) {
 	c := newCPUCollector()
 	snap := c.collect()
@@ -15,8 +14,6 @@ func TestCPUCollector_FirstTickNotReady(t *testing.T) {
 	}
 }
 
-// TestCPUCollector_SecondTickReady verifies the CPU collector returns Ready=true
-// and a valid time breakdown after the warm-up tick.
 func TestCPUCollector_SecondTickReady(t *testing.T) {
 	c := newCPUCollector()
 	c.collect() // warm-up
@@ -28,7 +25,6 @@ func TestCPUCollector_SecondTickReady(t *testing.T) {
 	if snap.PercentTotal < 0 || snap.PercentTotal > 100 {
 		t.Errorf("PercentTotal out of range [0,100]: %f", snap.PercentTotal)
 	}
-	// Time breakdown percentages must be in range and sum to ~100.
 	for _, v := range []float64{snap.UserPercent, snap.SystemPercent, snap.IOWaitPercent, snap.IdlePercent} {
 		if v < 0 || v > 100 {
 			t.Errorf("CPU time breakdown value out of range: %f", v)
@@ -41,7 +37,6 @@ func TestCPUCollector_SecondTickReady(t *testing.T) {
 	}
 }
 
-// TestMemory_SwapFieldsPresent verifies that swap fields are populated.
 func TestMemory_SwapFieldsPresent(t *testing.T) {
 	snap := collectMemory()
 	if snap.TotalBytes == 0 {
@@ -52,7 +47,6 @@ func TestMemory_SwapFieldsPresent(t *testing.T) {
 	}
 }
 
-// TestLoad_InRange verifies load averages are non-negative.
 func TestLoad_InRange(t *testing.T) {
 	snap := collectLoad()
 	if snap.Load1 < 0 || snap.Load5 < 0 || snap.Load15 < 0 {
@@ -60,7 +54,6 @@ func TestLoad_InRange(t *testing.T) {
 	}
 }
 
-// TestNetCollector_FirstTickZeroRates verifies network rates are 0 on first tick.
 func TestNetCollector_FirstTickZeroRates(t *testing.T) {
 	nc := newNetCollector()
 	snaps := nc.collect()
@@ -72,7 +65,6 @@ func TestNetCollector_FirstTickZeroRates(t *testing.T) {
 	}
 }
 
-// TestDiskIOCollector_FirstTickZeroRates verifies disk I/O rates are 0 on first tick.
 func TestDiskIOCollector_FirstTickZeroRates(t *testing.T) {
 	dc := newDiskCollector()
 	snaps := dc.collectIO()
