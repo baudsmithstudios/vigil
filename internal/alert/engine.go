@@ -100,12 +100,12 @@ func keySuffix(key string) string {
 	return " (" + key[i+1:] + ")"
 }
 
-// Evaluate returns alerts newly firing this tick; already-firing alerts are
-// not re-returned until they resolve and re-fire.
-func (e *Engine) Evaluate(values map[string]float64) []State {
+// Evaluate returns alerts newly firing this tick and firing alerts that have
+// cleared; already-firing alerts are not re-returned until they resolve and
+// re-fire.
+func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	var fired []State
 	for _, rule := range e.rules {
 		keys := matchingKeys(rule.Metric, values, e.shadowed)
 		for _, key := range keys {
@@ -131,10 +131,15 @@ func (e *Engine) Evaluate(values map[string]float64) []State {
 					}
 				} else {
 					delete(e.sustains, key)
+					if s, firing := e.firing[key]; firing {
+						resolved = append(resolved, s)
+						delete(e.firing, key)
+					}
 				}
 			}
 
-			// Delta alert.
+			// Delta alert: fires on a spike, resolves when the delta drops
+			// below threshold.
 			if rule.DeltaThreshold > 0 {
 				dk := deltaKey(key)
 				if prev, hasPrev := e.prev[key]; hasPrev {
@@ -150,6 +155,9 @@ func (e *Engine) Evaluate(values map[string]float64) []State {
 							e.firing[dk] = s
 							fired = append(fired, s)
 						}
+					} else if s, firing := e.firing[dk]; firing {
+						resolved = append(resolved, s)
+						delete(e.firing, dk)
 					}
 				}
 			}
@@ -161,46 +169,5 @@ func (e *Engine) Evaluate(values map[string]float64) []State {
 		e.prev[k] = v
 	}
 
-	return fired
-}
-
-// Resolved returns firing alerts that have cleared this tick and removes
-// them from the firing set.
-func (e *Engine) Resolved(values map[string]float64) []State {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	var resolved []State
-	for _, rule := range e.rules {
-		keys := matchingKeys(rule.Metric, values, e.shadowed)
-		for _, key := range keys {
-			v := values[key]
-
-			// Threshold resolution.
-			if _, firing := e.firing[key]; firing {
-				stillTriggered := (rule.Above && v > rule.Threshold) || (!rule.Above && v < rule.Threshold)
-				if !stillTriggered {
-					resolved = append(resolved, e.firing[key])
-					delete(e.firing, key)
-				}
-			}
-
-			// Delta resolution: auto-resolve when the delta drops below threshold.
-			if rule.DeltaThreshold > 0 {
-				dk := deltaKey(key)
-				if _, firing := e.firing[dk]; firing {
-					if prev, hasPrev := e.prev[key]; hasPrev {
-						delta := v - prev
-						if delta < 0 {
-							delta = -delta
-						}
-						if delta < rule.DeltaThreshold {
-							resolved = append(resolved, e.firing[dk])
-							delete(e.firing, dk)
-						}
-					}
-				}
-			}
-		}
-	}
-	return resolved
+	return fired, resolved
 }

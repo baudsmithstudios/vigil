@@ -12,7 +12,7 @@ func TestEngine_Fires(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 75.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 75.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 alert fired, got %d", len(fired))
 	}
@@ -27,7 +27,7 @@ func TestEngine_DoesNotFireBelowThreshold(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 40.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 40.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts, got %d", len(fired))
 	}
@@ -39,7 +39,7 @@ func TestEngine_FiresBelow(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{"cpu_temp": 5.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_temp": 5.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 alert fired, got %d", len(fired))
 	}
@@ -52,13 +52,13 @@ func TestEngine_FiresOnceUntilResolved(t *testing.T) {
 	eng := New(rules)
 
 	// First evaluation while above threshold → fires
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 alert on first fire, got %d", len(fired))
 	}
 
 	// Second evaluation still above threshold → does NOT re-fire
-	fired = eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
+	fired, _ = eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts while already firing, got %d", len(fired))
 	}
@@ -74,13 +74,13 @@ func TestEngine_Restore(t *testing.T) {
 	eng.Restore([]State{{Name: "cpu_percent", Message: "CPU high"}})
 
 	// Should not re-fire since it's already in firing state.
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts after restore (already firing), got %d", len(fired))
 	}
 
 	// Should resolve normally.
-	resolved := eng.Resolved(map[string]float64{"cpu_percent": 30.0})
+	_, resolved := eng.Evaluate(map[string]float64{"cpu_percent": 30.0})
 	if len(resolved) != 1 {
 		t.Fatalf("expected 1 resolved alert, got %d", len(resolved))
 	}
@@ -93,13 +93,13 @@ func TestEngine_DeltaAlert(t *testing.T) {
 	eng := New(rules)
 
 	// First tick — no previous value, no fire.
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 20.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 20.0})
 	if len(fired) != 0 {
 		t.Fatalf("expected 0 alerts on first tick, got %d", len(fired))
 	}
 
 	// Second tick — spike of 50 (20 → 70), exceeds delta_threshold of 30.
-	fired = eng.Evaluate(map[string]float64{"cpu_percent": 70.0})
+	fired, _ = eng.Evaluate(map[string]float64{"cpu_percent": 70.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 delta alert, got %d", len(fired))
 	}
@@ -108,10 +108,26 @@ func TestEngine_DeltaAlert(t *testing.T) {
 	}
 
 	// Third tick — small change (70 → 72), delta resolves.
-	eng.Evaluate(map[string]float64{"cpu_percent": 72.0}) // update prev
-	resolved := eng.Resolved(map[string]float64{"cpu_percent": 72.0})
+	_, resolved := eng.Evaluate(map[string]float64{"cpu_percent": 72.0})
 	if len(resolved) != 1 {
 		t.Fatalf("expected 1 resolved delta alert, got %d", len(resolved))
+	}
+}
+
+func TestEngine_DeltaAlertDoesNotResolveOnFiringTick(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "cpu_percent", DeltaThreshold: 30.0},
+	}
+	eng := New(rules)
+
+	eng.Evaluate(map[string]float64{"cpu_percent": 20.0})
+
+	fired, resolved := eng.Evaluate(map[string]float64{"cpu_percent": 70.0})
+	if len(fired) != 1 {
+		t.Fatalf("expected 1 delta alert, got %d", len(fired))
+	}
+	if len(resolved) != 0 {
+		t.Fatalf("delta alert resolved on the same tick it fired: %v", resolved)
 	}
 }
 
@@ -121,7 +137,7 @@ func TestEngine_ZeroThreshold(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{"balance": -5.0})
+	fired, _ := eng.Evaluate(map[string]float64{"balance": -5.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 alert for value below zero threshold, got %d", len(fired))
 	}
@@ -134,13 +150,13 @@ func TestEngine_DeltaOnlyDoesNotThresholdFire(t *testing.T) {
 	eng := New(rules)
 
 	// Should not fire a threshold alert even though value (50) is above zero threshold.
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 50.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 50.0})
 	if len(fired) != 0 {
 		t.Fatalf("expected 0 alerts for delta-only rule on first tick, got %d", len(fired))
 	}
 
 	// Small change — still no fire.
-	fired = eng.Evaluate(map[string]float64{"cpu_percent": 52.0})
+	fired, _ = eng.Evaluate(map[string]float64{"cpu_percent": 52.0})
 	for _, f := range fired {
 		if f.Name == "cpu_percent" {
 			t.Error("delta-only rule should not produce a threshold alert")
@@ -155,7 +171,7 @@ func TestEngine_Resolves(t *testing.T) {
 	eng := New(rules)
 	eng.Evaluate(map[string]float64{"cpu_percent": 80.0}) // fires
 
-	resolved := eng.Resolved(map[string]float64{"cpu_percent": 30.0})
+	_, resolved := eng.Evaluate(map[string]float64{"cpu_percent": 30.0})
 	if len(resolved) != 1 {
 		t.Fatalf("expected 1 resolved alert, got %d", len(resolved))
 	}
@@ -170,7 +186,7 @@ func TestEngine_PrefixMatchFiresPerMount(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_percent:/":         95.0,
 		"disk_percent:/mnt/data": 20.0,
 	})
@@ -191,7 +207,7 @@ func TestEngine_PrefixExactMountMatch(t *testing.T) {
 	}
 	eng := New(rules)
 
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_percent:/":         95.0,
 		"disk_percent:/mnt/data": 85.0,
 	})
@@ -213,7 +229,7 @@ func TestEngine_PrefixIndependentResolution(t *testing.T) {
 	eng := New(rules)
 
 	// Both mounts fire.
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_percent:/":         95.0,
 		"disk_percent:/mnt/data": 92.0,
 	})
@@ -222,7 +238,7 @@ func TestEngine_PrefixIndependentResolution(t *testing.T) {
 	}
 
 	// Root drops below threshold, data stays above.
-	resolved := eng.Resolved(map[string]float64{
+	_, resolved := eng.Evaluate(map[string]float64{
 		"disk_percent:/":         80.0,
 		"disk_percent:/mnt/data": 92.0,
 	})
@@ -247,7 +263,7 @@ func TestEngine_PrefixDelta(t *testing.T) {
 	})
 
 	// Second tick — root spikes, data is stable.
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_percent:/":         60.0,
 		"disk_percent:/mnt/data": 52.0,
 	})
@@ -267,13 +283,13 @@ func TestEngine_PrefixRestore(t *testing.T) {
 	eng.Restore([]State{{Name: "disk_percent:/", Message: "Disk high (/)"}})
 
 	// Should not re-fire since already restored.
-	fired := eng.Evaluate(map[string]float64{"disk_percent:/": 95.0})
+	fired, _ := eng.Evaluate(map[string]float64{"disk_percent:/": 95.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts after restore, got %d", len(fired))
 	}
 
 	// Should resolve when value drops.
-	resolved := eng.Resolved(map[string]float64{"disk_percent:/": 80.0})
+	_, resolved := eng.Evaluate(map[string]float64{"disk_percent:/": 80.0})
 	if len(resolved) != 1 {
 		t.Fatalf("expected 1 resolved, got %d", len(resolved))
 	}
@@ -288,15 +304,15 @@ func TestEngine_SustainedTicks_DelaysFiring(t *testing.T) {
 	vals := map[string]float64{"net_drops:eth0": 5.0}
 
 	// Ticks 1 and 2: above threshold but should NOT fire yet.
-	if fired := eng.Evaluate(vals); len(fired) != 0 {
+	if fired, _ := eng.Evaluate(vals); len(fired) != 0 {
 		t.Fatalf("tick 1: expected 0 alerts, got %d", len(fired))
 	}
-	if fired := eng.Evaluate(vals); len(fired) != 0 {
+	if fired, _ := eng.Evaluate(vals); len(fired) != 0 {
 		t.Fatalf("tick 2: expected 0 alerts, got %d", len(fired))
 	}
 
 	// Tick 3: sustained threshold reached, should fire.
-	fired := eng.Evaluate(vals)
+	fired, _ := eng.Evaluate(vals)
 	if len(fired) != 1 {
 		t.Fatalf("tick 3: expected 1 alert, got %d", len(fired))
 	}
@@ -320,15 +336,15 @@ func TestEngine_SustainedTicks_ResetsOnDrop(t *testing.T) {
 	eng.Evaluate(below)
 
 	// 2 more ticks above — should NOT fire (counter reset).
-	if fired := eng.Evaluate(above); len(fired) != 0 {
+	if fired, _ := eng.Evaluate(above); len(fired) != 0 {
 		t.Fatalf("expected 0 alerts after counter reset, got %d", len(fired))
 	}
-	if fired := eng.Evaluate(above); len(fired) != 0 {
+	if fired, _ := eng.Evaluate(above); len(fired) != 0 {
 		t.Fatalf("expected 0 alerts on tick 2 after reset, got %d", len(fired))
 	}
 
 	// 3rd tick above after reset — NOW it should fire.
-	fired := eng.Evaluate(above)
+	fired, _ := eng.Evaluate(above)
 	if len(fired) != 1 {
 		t.Fatalf("expected 1 alert on 3rd sustained tick, got %d", len(fired))
 	}
@@ -341,7 +357,7 @@ func TestEngine_SustainedTicks_ZeroMeansImmediate(t *testing.T) {
 	eng := New(rules)
 
 	// Should fire immediately (backward compatible).
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 95.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 95.0})
 	if len(fired) != 1 {
 		t.Fatalf("expected immediate fire with SustainedTicks=0, got %d", len(fired))
 	}
@@ -354,7 +370,7 @@ func TestEngine_PrefixZeroMatch(t *testing.T) {
 	eng := New(rules)
 
 	// No disk_percent keys in values at all.
-	fired := eng.Evaluate(map[string]float64{"cpu_percent": 50.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 50.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts with no matching keys, got %d", len(fired))
 	}
@@ -369,7 +385,7 @@ func TestEngine_SpecificRuleShadowsGeneric(t *testing.T) {
 
 	// mmcblk0 at 100ms: above generic (50) but below specific (200). Must not fire.
 	// sda at 75ms: above generic, no specific rule. Must fire from generic.
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_latency_ms:mmcblk0": 100.0,
 		"disk_latency_ms:sda":     75.0,
 	})
@@ -389,7 +405,7 @@ func TestEngine_SpecificRuleStillFiresWhenGenericShadowed(t *testing.T) {
 	eng := New(rules)
 
 	// mmcblk0 at 250ms: above its specific threshold. Generic must not double-fire.
-	fired := eng.Evaluate(map[string]float64{
+	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_latency_ms:mmcblk0": 250.0,
 	})
 	if len(fired) != 1 {
@@ -415,11 +431,10 @@ func TestEngine_ShadowedKeyDoesNotFireGenericOnResolve(t *testing.T) {
 
 	// Drops to 100ms: below specific (200) but above generic (50).
 	// Specific must resolve; generic must NOT fire on the shadowed key.
-	resolved := eng.Resolved(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
+	fired, resolved := eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
 	if len(resolved) != 1 || resolved[0].Name != "disk_latency_ms:mmcblk0" {
 		t.Fatalf("expected specific rule to resolve, got %+v", resolved)
 	}
-	fired := eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
 	if len(fired) != 0 {
 		t.Errorf("generic rule must not fire on shadowed key, got %+v", fired)
 	}
