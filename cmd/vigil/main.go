@@ -288,8 +288,7 @@ func runLoop(
 			}
 
 			values := snapshotMetricValues(snap)
-			fired := eng.Evaluate(values)
-			resolved := eng.Resolved(values)
+			fired, resolved := eng.Evaluate(values)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "alert")
 			handleThrottleAlert(ctx, snap, &throttleFiring, db, lc.onAlert, n)
 			handleMountAlerts(ctx, snap, mountHandler, db, lc.onAlert, n)
