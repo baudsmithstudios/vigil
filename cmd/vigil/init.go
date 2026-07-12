@@ -364,7 +364,7 @@ func runInitCmd(args []string) {
 	}
 }
 
-// runInit drives the interactive flow, reading from r. Pass discover=nil in tests to skip mount discovery.
+// runInit drives the interactive flow, reading from r.
 func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initEnv) error {
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("%s already exists — delete it or use a different path with -config", configPath)
@@ -540,7 +540,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		}
 	}
 
-	// Defaults for interval, retention, and theme.
 	cfg.interval = "2s"
 	cfg.retention = "12h"
 	cfg.theme = "auto"

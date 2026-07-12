@@ -86,7 +86,6 @@ func (h *MountAlertHandler) Evaluate(mounts []collector.MountStatus) (fired, res
 		path := m.Path
 		st := h.getOrCreate(path)
 
-		// Check if the flap window has expired; if so, reset flap tracking.
 		if st.flapCount > 0 && !st.flapStart.IsZero() && time.Since(st.flapStart) > h.flapWindow {
 			if st.flapFiring {
 				resolved = append(resolved, State{
