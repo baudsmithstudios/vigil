@@ -400,3 +400,10 @@ Vigil targets a specific niche: a single-binary terminal monitor with built-in s
 | **Config parsing** | [BurntSushi/toml](https://github.com/BurntSushi/toml) | TOML configuration file parser |
 | **Terminal detection** | [termenv](https://github.com/muesli/termenv) | Terminal feature detection and color profiles |
 | **Containerization** | [Docker](https://github.com/moby/moby) | Multi-stage build, hardened runtime |
+
+## Contributing
+
+Vigil is a personal project built in public. **It does not accept external pull
+requests**, but issues are welcome: bug reports, feature requests, and questions
+all help. See [CONTRIBUTING.md](CONTRIBUTING.md) for details, or
+[SECURITY.md](SECURITY.md) for vulnerability reports.

@@ -1,17 +1,7 @@
-## What does this PR do?
-
-Brief description of the change.
-
-## How was this tested?
-
-- [ ] `go build ./...` succeeds
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` clean
-- [ ] Tested on: (OS, architecture, Docker version if relevant)
-
-## Checklist
-
-- [ ] Changes are focused — one feature or fix
-- [ ] New functionality includes tests
-- [ ] Comments explain why, not what
-- [ ] No secrets or credentials included
+> **Vigil does not accept external pull requests.**
+>
+> This is a personal project and patches won't be merged, so please don't open
+> this PR. If you have found a bug or want to suggest a feature, please
+> [open an issue](../../issues/new/choose) instead. Issues and discussion are always welcome.
+>
+> See [CONTRIBUTING.md](../CONTRIBUTING.md) for details.

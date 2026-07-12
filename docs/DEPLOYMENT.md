@@ -1,6 +1,6 @@
 # Raspberry Pi Deployment Guide
 
-> **This is a developer/contributor reference.** It covers cross-compilation, buildx workflows, and Pi-specific troubleshooting. If you're setting up Vigil for the first time, the [README Quick Start](../README.md#quick-start) is the right place to begin.
+> **This is a developer reference.** It covers cross-compilation, buildx workflows, and Pi-specific troubleshooting. If you are setting up Vigil for the first time, the [README Quick Start](../README.md#quick-start) is the right place to begin.
 
 ## Prerequisites
 

@@ -1,36 +1,13 @@
 # Contributing to Vigil
 
-Thanks for your interest in contributing! Vigil is a small project and contributions are welcome.
+Vigil is a personal learning project, developed and maintained on my spare time. I am building in public to share ideas, keep myself (somewhat) accountable, and to maybe finish something that is marginally useful. To keep the project focused and maintainable, while also allowing myself space to experiment with different things, **I will not accept external pull requests.** Please don't spend time on a patch; it won't be merged.
 
-## Getting started
+Issues and discussion, however, are welcomed:
 
-1. Fork the repo and clone your fork
-2. Make sure you have the Go version required by `go.mod` installed
-3. Run `go test ./...` to verify everything passes
-4. Create a branch for your change
+- **Bug reports** — open an issue with what you expected, what happened, steps to
+  reproduce, and your environment (OS, architecture, Docker version if relevant).
+- **Feature requests** — open an issue describing the problem or use case.
+- **Questions** — open an issue. There are no bad questions.
 
-## Submitting changes
-
-- Open a pull request against `main`
-- Keep changes focused — one feature or fix per PR
-- Include tests for new functionality
-- Make sure `go test ./...` and `go vet ./...` pass before submitting
-- CI also runs `govulncheck`; you can check locally with `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
-
-## Reporting bugs
-
-Open an issue with:
-- What you expected to happen
-- What actually happened
-- Steps to reproduce
-- Your environment (OS, Go version, Docker version if relevant)
-
-## Code style
-
-- Match the style of surrounding code
-- Keep it simple — no over-engineering
-- Run `gofmt` before committing
-
-## Questions?
-
-Open an issue. There are no bad questions.
+For security vulnerabilities, please follow [SECURITY.md](SECURITY.md) instead of
+opening a public issue.
