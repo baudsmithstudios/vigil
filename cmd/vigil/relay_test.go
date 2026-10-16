@@ -12,21 +12,6 @@ import (
 	"vigil/internal/tui"
 )
 
-func snapAt(sec int64) collector.Snapshot {
-	return collector.Snapshot{Timestamp: time.Unix(sec, 0)}
-}
-
-func recv(t *testing.T, got <-chan tea.Msg) tea.Msg {
-	t.Helper()
-	select {
-	case m := <-got:
-		return m
-	case <-time.After(time.Second):
-		t.Fatal("relay delivered nothing to the dashboard")
-		return nil
-	}
-}
-
 func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -47,7 +32,7 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 			r.alert(m.Fired, m.Resolved)
 		}
 		for i := int64(1); i <= 100; i++ {
-			r.snapshot(snapAt(i))
+			r.snapshot(collector.Snapshot{Timestamp: time.Unix(i, 0)})
 		}
 		close(returned)
 	}()
@@ -60,7 +45,13 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 	var alerts []tui.AlertMsg
 	var snaps []time.Time
 	for len(snaps) == 0 || !snaps[len(snaps)-1].Equal(time.Unix(100, 0)) {
-		switch m := recv(t, got).(type) {
+		var msg tea.Msg
+		select {
+		case msg = <-got:
+		case <-time.After(time.Second):
+			t.Fatal("relay delivered nothing to the dashboard")
+		}
+		switch m := msg.(type) {
 		case tui.AlertMsg:
 			alerts = append(alerts, m)
 		case tui.SnapshotMsg:
