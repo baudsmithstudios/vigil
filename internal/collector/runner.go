@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"vigil/internal/checker"
@@ -21,6 +22,7 @@ type Runner struct {
 	prevSwapOut uint64
 	prevSwapAt  time.Time
 	swapReady   bool
+	dropped     int // snapshots dropped since the consumer last kept up
 	out         chan Snapshot
 }
 
@@ -58,13 +60,26 @@ func (r *Runner) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case t := <-ticker.C:
-			snap := r.Collect(t)
-			select {
-			case r.out <- snap:
-			default:
-				// Drop snapshot if consumer is slow rather than blocking.
-			}
+			r.deliver(r.Collect(t))
 		}
+	}
+}
+
+// deliver hands snap to the consumer. A stall is logged when it starts (in case
+// it never ends) and again with the drop count once the consumer catches up.
+func (r *Runner) deliver(snap Snapshot) {
+	select {
+	case r.out <- snap:
+		if r.dropped > 0 {
+			log.Printf("collector: dropped %d snapshots while the consumer was stalled", r.dropped)
+			r.dropped = 0
+		}
+	default:
+		// Drop snapshot if consumer is slow rather than blocking.
+		if r.dropped == 0 {
+			log.Printf("collector: consumer stalled, dropping snapshots")
+		}
+		r.dropped++
 	}
 }
 
