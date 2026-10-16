@@ -22,7 +22,7 @@ type Runner struct {
 	prevSwapOut uint64
 	prevSwapAt  time.Time
 	swapReady   bool
-	dropped     int // snapshots dropped since the consumer last kept up
+	dropped     int
 	out         chan Snapshot
 }
 
@@ -65,8 +65,7 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
-// deliver hands snap to the consumer. A stall is logged when it starts (in case
-// it never ends) and again with the drop count once the consumer catches up.
+// deliver never blocks. A stall is logged at its start, in case it never ends.
 func (r *Runner) deliver(snap Snapshot) {
 	select {
 	case r.out <- snap:
@@ -75,7 +74,6 @@ func (r *Runner) deliver(snap Snapshot) {
 			r.dropped = 0
 		}
 	default:
-		// Drop snapshot if consumer is slow rather than blocking.
 		if r.dropped == 0 {
 			log.Printf("collector: consumer stalled, dropping snapshots")
 		}

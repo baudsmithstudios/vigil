@@ -16,7 +16,7 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Unbuffered, so send stalls like a frozen TUI until the test reads.
+	// Unbuffered, so send blocks like a stalled TUI.
 	got := make(chan tea.Msg)
 	r := newTUIRelay()
 	go r.run(ctx, func(m tea.Msg) { got <- m })
@@ -62,7 +62,7 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 	if !reflect.DeepEqual(alerts, want) {
 		t.Fatalf("alerts lost or reordered: got %+v", alerts)
 	}
-	// At most one batch was in flight before the stall; the rest coalesce.
+	// One batch may predate the stall; the rest coalesce.
 	if len(snaps) > 2 {
 		t.Fatalf("got %d snapshots, want stale ones dropped", len(snaps))
 	}

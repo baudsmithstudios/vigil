@@ -10,10 +10,8 @@ import (
 	"vigil/internal/tui"
 )
 
-// tuiRelay hands runLoop output to the dashboard without ever blocking
-// runLoop, so a stalled terminal cannot stop alert evaluation. Only the latest
-// snapshot is kept; alert messages queue in order so every fire and resolve
-// reaches the dashboard.
+// tuiRelay feeds the dashboard without blocking runLoop, so a stalled terminal
+// can't stop alerting. Snapshots coalesce; alerts queue in order.
 type tuiRelay struct {
 	mu     sync.Mutex
 	snap   *tui.SnapshotMsg
@@ -43,12 +41,11 @@ func (r *tuiRelay) alert(fired, resolved []alert.State) {
 func (r *tuiRelay) signal() {
 	select {
 	case r.wake <- struct{}{}:
-	default: // a wake-up is already pending
+	default:
 	}
 }
 
-// run delivers pending messages until ctx is done. Alerts go first, matching
-// the order runLoop produces them within a tick.
+// run sends alerts before the snapshot, matching runLoop's order.
 func (r *tuiRelay) run(ctx context.Context, send func(tea.Msg)) {
 	for {
 		select {
