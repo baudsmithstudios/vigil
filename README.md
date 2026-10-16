@@ -152,7 +152,7 @@ delta_threshold = 40.0            # optional: fire on sudden spike
 sustained_ticks = 3               # optional: require 3 consecutive ticks before firing
 ```
 
-Rules support `threshold`, `delta_threshold`, or both. Threshold alerts fire when a value crosses a sustained level. Delta alerts fire on sudden spikes and auto-resolve when the rate of change drops. `sustained_ticks` delays firing until the condition persists for N consecutive collection ticks — useful for noisy metrics like network drops where a single blip isn't actionable.
+Rules support `threshold`, `delta_threshold`, or both. Threshold alerts fire when a value crosses a sustained level. Delta alerts fire on sudden spikes and resolve once the tick-to-tick change drops below `delta_threshold`. `sustained_ticks` delays firing until the condition persists for N consecutive collection ticks — useful for noisy metrics like network drops where a single blip isn't actionable.
 `vigil init` writes a Pi-focused starter set that also includes swap activity, CPU iowait, disk utilization/latency, and SD/MMC error alerts.
 
 A specific rule like `disk_latency_ms:mmcblk0` shadows the generic `disk_latency_ms` rule for that one device, so per-device overrides don't double-fire alongside the catch-all.
@@ -349,16 +349,17 @@ Service Checker (goroutine) ───────────┘
     ├─ HTTP checks
     └─ TCP port checks
          ↓
-     SQLite DB  ←  Purge loop (1h)
+     SQLite DB  ←  Purge loop
          ↑
     Alert Engine → Notifications (async)
 ```
 
 - **Collector** — CPU/disk/network rates require two samples; first tick shows zero
-- **SQLite** — batched writes every 5 min (TUI) / 30 sec (headless); WAL mode
+- **SQLite** — batched writes every 5 min (TUI) / 30 sec (headless); purge every 1 h (TUI) / 5 min (headless); WAL mode
 - **Alert engine** — fires once, clears on resolution; state persisted to DB and restored on startup
 - **Mount alert handler** — debounce (3 ticks) and flap detection (3 cycles / 5 min) run independently of the threshold alert engine
 - **Service alert handler** — fires after N consecutive failures, resolves on recovery
+- **Throttle alert handler** — fires while any throttle flag is active, resolves when all clear; a failed read leaves the alert unchanged
 
 ## Keyboard Shortcuts
 
@@ -368,7 +369,7 @@ Service Checker (goroutine) ───────────┘
 | `q` / `Ctrl+C` | Quit |
 | `j` / `↓` | Next alert |
 | `k` / `↑` | Previous alert |
-| `d` | Dismiss selected alert |
+| `d` | Dismiss selected alert (except throttle, which clears on its own) |
 | `m` | Mute/unmute notifications (session only) |
 
 ## Comparison
