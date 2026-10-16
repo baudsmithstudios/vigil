@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-16
+
 ### Fixed
 
 - Delta alerts no longer resolve on the same tick they fire; they stay active until the rate drops below the `delta` threshold
@@ -77,7 +79,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ~20MB ARM64 Docker image; `docker compose up` one-liner deployment
 - Hardened container defaults: read-only root filesystem, non-root user, no extra capabilities
 
-[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/baudsmithstudios/vigil/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/baudsmithstudios/vigil/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/baudsmithstudios/vigil/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/baudsmithstudios/vigil/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/baudsmithstudios/vigil/compare/v0.1.0...v0.2.0
