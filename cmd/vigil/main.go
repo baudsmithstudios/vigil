@@ -277,12 +277,14 @@ func runLoop(
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "alert")
 			fired, resolved = throttleHandler.Evaluate(snap.Throttle)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "throttle")
-			handleMountAlerts(ctx, snap, mountHandler, db, lc.onAlert, n)
+			fired, resolved = mountHandler.Evaluate(snap.Mounts)
+			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "mount")
 
 			ct := snap.ServiceCycleTime
 			if !ct.IsZero() && ct.After(lastCycleTime) {
 				lastCycleTime = ct
-				handleServiceAlerts(ctx, snap, serviceHandler, db, lc.onAlert, n)
+				fired, resolved = serviceHandler.Evaluate(snap.Services)
+				persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "service")
 				for _, s := range snap.Services {
 					serviceBuf = append(serviceBuf, store.ServiceCheckReading{
 						Name:       s.Name,
@@ -414,36 +416,6 @@ func persistAlertChanges(
 			}
 		}
 	}
-}
-
-func handleMountAlerts(
-	ctx context.Context,
-	snap collector.Snapshot,
-	handler *alert.MountAlertHandler,
-	db *store.DB,
-	onAlert func(fired, resolved []alert.State),
-	n notify.Notifier,
-) {
-	if len(snap.Mounts) == 0 {
-		return
-	}
-	fired, resolved := handler.Evaluate(snap.Mounts)
-	persistAlertChanges(ctx, fired, resolved, db, onAlert, n, "mount")
-}
-
-func handleServiceAlerts(
-	ctx context.Context,
-	snap collector.Snapshot,
-	handler *alert.ServiceAlertHandler,
-	db *store.DB,
-	onAlert func(fired, resolved []alert.State),
-	n notify.Notifier,
-) {
-	if len(snap.Services) == 0 {
-		return
-	}
-	fired, resolved := handler.Evaluate(snap.Services)
-	persistAlertChanges(ctx, fired, resolved, db, onAlert, n, "service")
 }
 
 func snapshotMetricValues(snap collector.Snapshot) map[string]float64 {
