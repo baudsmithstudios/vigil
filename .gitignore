@@ -31,7 +31,6 @@ dist/
 
 # Development notes
 DEV_NOTES/
-DEV_NOTES.md
 
 # Secrets and credentials
 .env
