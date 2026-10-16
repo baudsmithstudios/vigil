@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Delta alerts no longer resolve on the same tick they fire; they stay active until the rate drops below the `delta` threshold
+- A stalled terminal no longer stops alert evaluation and notifications in TUI mode
+- Dropped snapshots are now logged instead of discarded silently
 
 ### Security
 
