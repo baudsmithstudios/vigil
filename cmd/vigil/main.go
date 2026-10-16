@@ -132,18 +132,32 @@ func main() {
 	throttleHandler := &alert.ThrottleAlertHandler{}
 	throttleHandler.Restore(restoredAlerts)
 
+	a := alerting{
+		engine:   alertEngine,
+		mounts:   mountHandler,
+		services: serviceHandler,
+		throttle: throttleHandler,
+	}
+
 	if *headless {
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler, throttleHandler)
+		runHeadless(ctx, db, cfg, snapshots, a, notifier)
 		return
 	}
 
 	if !isTerminal(os.Stdout) {
 		log.Println("stdout is not a TTY, running in headless mode")
-		runHeadless(ctx, db, cfg, snapshots, alertEngine, notifier, mountHandler, serviceHandler, throttleHandler)
+		runHeadless(ctx, db, cfg, snapshots, a, notifier)
 		return
 	}
 
-	runTUI(ctx, cancel, db, cfg, snapshots, alertEngine, restoredAlerts, notifier, mute, mountHandler, serviceHandler, throttleHandler)
+	runTUI(ctx, cancel, db, cfg, snapshots, a, restoredAlerts, notifier, mute)
+}
+
+type alerting struct {
+	engine   *alert.Engine
+	mounts   *alert.MountAlertHandler
+	services *alert.ServiceAlertHandler
+	throttle *alert.ThrottleAlertHandler
 }
 
 type loopConfig struct {
@@ -162,21 +176,18 @@ func runTUI(
 	db *store.DB,
 	cfg config.Config,
 	snapshots <-chan collector.Snapshot,
-	eng *alert.Engine,
+	a alerting,
 	restoredAlerts []alert.State,
 	n notify.Notifier,
 	mute *notify.Mute,
-	mountHandler *alert.MountAlertHandler,
-	serviceHandler *alert.ServiceAlertHandler,
-	throttleHandler *alert.ThrottleAlertHandler,
 ) {
 	model := tui.New(cfg.Theme, func(name string) {
 		if err := db.DismissAlert(name); err != nil {
 			log.Printf("dismiss alert: %v", err)
 		}
-		eng.Dismiss(name)
-		mountHandler.Dismiss(name)
-		serviceHandler.Dismiss(name)
+		a.engine.Dismiss(name)
+		a.mounts.Dismiss(name)
+		a.services.Dismiss(name)
 	}, mute)
 	if len(restoredAlerts) > 0 {
 		model.SetAlerts(restoredAlerts)
@@ -193,7 +204,7 @@ func runTUI(
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, throttleHandler, loopConfig{
+		runLoop(ctx, db, snapshots, a, n, loopConfig{
 			writeBufCap:     4096,
 			containerBufCap: 256,
 			flushInterval:   5 * time.Minute,
@@ -201,7 +212,7 @@ func runTUI(
 			retention:       cfg.Retention.Duration,
 			onSnapshot: func(snap collector.Snapshot) {
 				for i, m := range snap.Mounts {
-					if mountHandler.IsUnstable(m.Path) {
+					if a.mounts.IsUnstable(m.Path) {
 						snap.Mounts[i].Unstable = true
 					}
 				}
@@ -224,13 +235,10 @@ func runHeadless(
 	db *store.DB,
 	cfg config.Config,
 	snapshots <-chan collector.Snapshot,
-	eng *alert.Engine,
+	a alerting,
 	n notify.Notifier,
-	mountHandler *alert.MountAlertHandler,
-	serviceHandler *alert.ServiceAlertHandler,
-	throttleHandler *alert.ThrottleAlertHandler,
 ) {
-	runLoop(ctx, db, snapshots, eng, n, mountHandler, serviceHandler, throttleHandler, loopConfig{
+	runLoop(ctx, db, snapshots, a, n, loopConfig{
 		writeBufCap:     256,
 		containerBufCap: 64,
 		flushInterval:   30 * time.Second,
@@ -243,11 +251,8 @@ func runLoop(
 	ctx context.Context,
 	db *store.DB,
 	snapshots <-chan collector.Snapshot,
-	eng *alert.Engine,
+	a alerting,
 	n notify.Notifier,
-	mountHandler *alert.MountAlertHandler,
-	serviceHandler *alert.ServiceAlertHandler,
-	throttleHandler *alert.ThrottleAlertHandler,
 	lc loopConfig,
 ) {
 	writeBuf := make([]store.Reading, 0, lc.writeBufCap)
@@ -273,17 +278,17 @@ func runLoop(
 			}
 
 			values := snapshotMetricValues(snap)
-			fired, resolved := eng.Evaluate(values)
+			fired, resolved := a.engine.Evaluate(values)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "alert")
-			fired, resolved = throttleHandler.Evaluate(snap.Throttle)
+			fired, resolved = a.throttle.Evaluate(snap.Throttle)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "throttle")
-			fired, resolved = mountHandler.Evaluate(snap.Mounts)
+			fired, resolved = a.mounts.Evaluate(snap.Mounts)
 			persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "mount")
 
 			ct := snap.ServiceCycleTime
 			if !ct.IsZero() && ct.After(lastCycleTime) {
 				lastCycleTime = ct
-				fired, resolved = serviceHandler.Evaluate(snap.Services)
+				fired, resolved = a.services.Evaluate(snap.Services)
 				persistAlertChanges(ctx, fired, resolved, db, lc.onAlert, n, "service")
 				for _, s := range snap.Services {
 					serviceBuf = append(serviceBuf, store.ServiceCheckReading{

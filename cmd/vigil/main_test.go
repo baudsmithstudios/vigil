@@ -390,11 +390,13 @@ func TestRunLoop_FlushesOnSnapshotChannelClose(t *testing.T) {
 		context.Background(),
 		db,
 		snapshots,
-		alert.New(nil),
+		alerting{
+			engine:   alert.New(nil),
+			mounts:   alert.NewMountHandler(),
+			services: alert.NewServiceHandler(2),
+			throttle: &alert.ThrottleAlertHandler{},
+		},
 		nil,
-		alert.NewMountHandler(),
-		alert.NewServiceHandler(2),
-		&alert.ThrottleAlertHandler{},
 		loopConfig{
 			writeBufCap:     8,
 			containerBufCap: 4,
@@ -431,11 +433,13 @@ func TestRunLoop_PersistsThrottleAlert(t *testing.T) {
 		context.Background(),
 		db,
 		snapshots,
-		alert.New(nil),
+		alerting{
+			engine:   alert.New(nil),
+			mounts:   alert.NewMountHandler(),
+			services: alert.NewServiceHandler(2),
+			throttle: &alert.ThrottleAlertHandler{},
+		},
 		nil,
-		alert.NewMountHandler(),
-		alert.NewServiceHandler(2),
-		&alert.ThrottleAlertHandler{},
 		loopConfig{flushInterval: time.Hour, purgeInterval: time.Hour},
 	)
 
