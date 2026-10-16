@@ -394,6 +394,7 @@ func TestRunLoop_FlushesOnSnapshotChannelClose(t *testing.T) {
 		nil,
 		alert.NewMountHandler(),
 		alert.NewServiceHandler(2),
+		&alert.ThrottleAlertHandler{},
 		loopConfig{
 			writeBufCap:     8,
 			containerBufCap: 4,
@@ -412,5 +413,37 @@ func TestRunLoop_FlushesOnSnapshotChannelClose(t *testing.T) {
 	}
 	if readings[0].Value != 42.0 {
 		t.Fatalf("expected mem_percent 42.0, got %v", readings[0].Value)
+	}
+}
+
+func TestRunLoop_PersistsThrottleAlert(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	snapshots := make(chan collector.Snapshot, 1)
+	snapshots <- collector.Snapshot{
+		Timestamp: time.Now(),
+		Throttle:  collector.ThrottleSnapshot{Available: true, UnderVoltage: true},
+	}
+	close(snapshots)
+
+	runLoop(
+		context.Background(),
+		db,
+		snapshots,
+		alert.New(nil),
+		nil,
+		alert.NewMountHandler(),
+		alert.NewServiceHandler(2),
+		&alert.ThrottleAlertHandler{},
+		loopConfig{flushInterval: time.Hour, purgeInterval: time.Hour},
+	)
+
+	active, err := db.ActiveAlerts()
+	if err != nil {
+		t.Fatalf("ActiveAlerts: %v", err)
+	}
+	if len(active) != 1 || active[0].Name != metric.AlertThrottle {
+		t.Fatalf("expected active throttle alert, got %+v", active)
 	}
 }
