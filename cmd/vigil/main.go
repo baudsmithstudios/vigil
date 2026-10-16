@@ -184,6 +184,9 @@ func runTUI(
 		tea.WithAltScreen(),
 	)
 
+	relay := newTUIRelay()
+	go relay.run(ctx, p.Send)
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -200,11 +203,9 @@ func runTUI(
 						snap.Mounts[i].Unstable = true
 					}
 				}
-				p.Send(tui.SnapshotMsg(snap))
+				relay.snapshot(snap)
 			},
-			onAlert: func(fired, resolved []alert.State) {
-				p.Send(tui.AlertMsg{Fired: fired, Resolved: resolved})
-			},
+			onAlert: relay.alert,
 		})
 	}()
 
