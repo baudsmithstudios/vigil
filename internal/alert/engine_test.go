@@ -93,16 +93,16 @@ func TestEngine_DismissRefiresAfterFullSustainWindow(t *testing.T) {
 	eng := New(rules)
 	high := map[string]float64{"cpu_percent": 80.0}
 	eng.Evaluate(high)
-	eng.Evaluate(high) // fires
+	if fired, _ := eng.Evaluate(high); len(fired) != 1 {
+		t.Fatalf("setup: expected fire on sustained tick, got %d", len(fired))
+	}
 
 	eng.Dismiss("cpu_percent")
-	fired, _ := eng.Evaluate(high)
-	if len(fired) != 0 {
-		t.Error("expected no immediate re-fire after dismiss")
+	if fired, _ := eng.Evaluate(high); len(fired) != 0 {
+		t.Fatalf("expected no immediate re-fire after dismiss, got %d", len(fired))
 	}
-	fired, _ = eng.Evaluate(high)
-	if len(fired) != 1 {
-		t.Error("expected re-fire after a full sustain window post-dismiss")
+	if fired, _ := eng.Evaluate(high); len(fired) != 1 {
+		t.Fatalf("expected re-fire after a full sustain window post-dismiss, got %d", len(fired))
 	}
 }
 
