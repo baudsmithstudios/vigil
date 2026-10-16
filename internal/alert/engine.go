@@ -55,7 +55,8 @@ func (e *Engine) Restore(states []State) {
 	}
 }
 
-// Dismiss removes an alert from the firing set so it won't immediately re-fire.
+// Dismiss clears firing state so a still-breaching alert re-fires after another
+// full sustain window (the next tick when sustained_ticks is unset).
 func (e *Engine) Dismiss(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
