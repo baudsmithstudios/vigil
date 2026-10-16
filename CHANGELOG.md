@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Delta alerts no longer resolve on the same tick they fire; they stay active until the rate drops below the `delta` threshold
 
+### Security
+
+- Built with Go 1.26.9 to fix standard-library vulnerabilities in `net/http`, `net/textproto` and `crypto/tls`
+
 ## [0.3.1] - 2026-05-15
 
 ### Changed
