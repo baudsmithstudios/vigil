@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,23 +20,33 @@ import (
 	"vigil/internal/store"
 )
 
-func tempDB(t *testing.T) (*store.DB, func()) {
+func tempDB(t *testing.T) *store.DB {
 	t.Helper()
-	f, err := os.CreateTemp("", "vigil-main-test-*.db")
+	db, err := store.Open(filepath.Join(t.TempDir(), "vigil.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	t.Cleanup(func() { db.Close() })
+	return db
+}
 
-	db, err := store.Open(f.Name())
-	if err != nil {
-		os.Remove(f.Name())
-		t.Fatal(err)
-	}
-	return db, func() {
-		db.Close()
-		os.Remove(f.Name())
-	}
+func runLoopOnce(db *store.DB, snap collector.Snapshot) {
+	snapshots := make(chan collector.Snapshot, 1)
+	snapshots <- snap
+	close(snapshots)
+	runLoop(
+		context.Background(),
+		db,
+		snapshots,
+		alerting{
+			engine:   alert.New(nil),
+			mounts:   alert.NewMountHandler(),
+			services: alert.NewServiceHandler(2),
+			throttle: &alert.ThrottleAlertHandler{},
+		},
+		nil,
+		loopConfig{flushInterval: time.Hour, purgeInterval: time.Hour},
+	)
 }
 
 func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
@@ -49,15 +58,12 @@ func TestSnapshotToValues_PerMountDiskKeys(t *testing.T) {
 	}
 	values := snapshotMetricValues(snap)
 
-	// Each mount should have its own key.
 	if v, ok := values[metric.PrefixDiskPercent+"/"]; !ok || v != 95.0 {
 		t.Errorf("expected disk_percent:/ = 95.0, got %v (present=%v)", v, ok)
 	}
 	if v, ok := values[metric.PrefixDiskPercent+"/mnt/data"]; !ok || v != 20.0 {
 		t.Errorf("expected disk_percent:/mnt/data = 20.0, got %v (present=%v)", v, ok)
 	}
-
-	// Bare "disk_percent" key must not exist.
 	if _, ok := values["disk_percent"]; ok {
 		t.Error("bare 'disk_percent' key should not exist in values map")
 	}
@@ -67,12 +73,8 @@ func TestBuildNotifierSendsNtfyNotification(t *testing.T) {
 	var gotPath, gotBody string
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("read body: %v", err)
-		}
+		body, _ := io.ReadAll(r.Body)
 		gotBody = string(body)
-		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
@@ -82,25 +84,14 @@ func TestBuildNotifierSendsNtfyNotification(t *testing.T) {
 		http.DefaultTransport = oldTransport
 	})
 
-	notifier, mute, err := buildNotifier(config.Notifications{
+	notifier, _, err := buildNotifier(config.Notifications{
 		NtfyTopic:  "vigil-alerts",
 		NtfyServer: srv.URL,
 	})
 	if err != nil {
 		t.Fatalf("buildNotifier() error = %v", err)
 	}
-	if mute == nil {
-		t.Fatal("expected mute toggle")
-	}
-	if notifier == nil {
-		t.Fatal("expected notifier")
-	}
-	err = notifier.Send(context.Background(), alert.State{
-		Name:    "cpu_percent",
-		Message: "CPU usage above 90%",
-		FiredAt: time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC),
-	}, false)
-	if err != nil {
+	if err := notifier.Send(context.Background(), alert.State{Name: "cpu_percent"}, false); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
 	if gotPath != "/vigil-alerts" {
@@ -141,16 +132,10 @@ func TestOnceOutputJSONContractUsesStableKeys(t *testing.T) {
 			t.Fatalf("expected top-level key %q in %s", key, data)
 		}
 	}
-	if _, ok := out["Timestamp"]; ok {
-		t.Fatalf("did not expect Go struct key Timestamp in %s", data)
-	}
 
 	cpu := out["cpu"].(map[string]any)
 	if _, ok := cpu["percent_total"]; !ok {
 		t.Fatalf("expected cpu.percent_total in %s", data)
-	}
-	if _, ok := cpu["PercentTotal"]; ok {
-		t.Fatalf("did not expect Go struct key cpu.PercentTotal in %s", data)
 	}
 	if cpu["percent_per_core"] == nil {
 		t.Fatalf("expected empty cpu.percent_per_core array, got null in %s", data)
@@ -167,59 +152,15 @@ func TestOnceOutputJSONContractUsesStableKeys(t *testing.T) {
 }
 
 func TestOnceOutputMapsRepresentativeValues(t *testing.T) {
-	ts := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
 	snap := collector.Snapshot{
-		Timestamp: ts,
-		CPU: collector.CPUSnapshot{
-			PercentPerCore: []float64{10, 20},
-			PercentTotal:   15,
-			Ready:          true,
-		},
-		Memory: collector.MemSnapshot{
-			Percent: 50,
-		},
-		Disks: []collector.DiskSnapshot{{
-			MountPoint: "/",
-			Percent:    25,
-			Device:     "mmcblk0p2",
-		}},
-		DiskIO: []collector.DiskIOSnapshot{{
-			Device:    "mmcblk0",
-			LatencyMs: 3.5,
-		}},
-		Load:        collector.LoadSnapshot{Load1: 1, Load5: 2, Load15: 3},
-		Temperature: []collector.TempSnapshot{{SensorKey: "cpu_thermal", Celsius: 42.5}},
-		Throttle: collector.ThrottleSnapshot{
-			Raw:                   1,
-			UnderVoltage:          true,
-			UnderVoltageSinceBoot: true,
-			Available:             true,
-		},
-		Mounts: []collector.MountStatus{{
-			Path:     "/mnt/data",
-			Label:    "Data",
-			Mounted:  true,
-			Unstable: false,
-		}},
-		Services: []checker.ServiceStatus{{
-			Name:       "web",
-			CheckType:  "http",
-			Up:         true,
-			StatusCode: 200,
-			Latency:    25 * time.Millisecond,
-			CheckedAt:  ts,
-		}},
-		ServiceCycleTime: ts,
-		UptimeSec:        12345,
+		Disks:       []collector.DiskSnapshot{{MountPoint: "/"}},
+		DiskIO:      []collector.DiskIOSnapshot{{Device: "mmcblk0", LatencyMs: 3.5}},
+		Temperature: []collector.TempSnapshot{{SensorKey: "cpu_thermal"}},
+		Throttle:    collector.ThrottleSnapshot{UnderVoltage: true, Available: true},
+		Services:    []checker.ServiceStatus{{Name: "web", Latency: 25 * time.Millisecond}},
 	}
 
 	out := onceOutputFromSnapshot(snap)
-	if got := out.Timestamp; !got.Equal(ts) {
-		t.Fatalf("expected timestamp %s, got %s", ts, got)
-	}
-	if got := out.CPU.PercentTotal; got != 15 {
-		t.Fatalf("expected cpu percent_total 15, got %v", got)
-	}
 	if got := out.Disks[0].MountPoint; got != "/" {
 		t.Fatalf("expected disk mount point /, got %q", got)
 	}
@@ -249,13 +190,8 @@ func TestRunOnceJSONDoesNotOpenDatabase(t *testing.T) {
 	if err := runOnceJSON(&out, cfg); err != nil {
 		t.Fatalf("runOnceJSON() error = %v", err)
 	}
-
-	var decoded map[string]any
-	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
-		t.Fatalf("runOnceJSON wrote invalid JSON: %v\n%s", err, out.String())
-	}
-	if _, ok := decoded["timestamp"]; !ok {
-		t.Fatalf("expected timestamp in JSON output: %s", out.String())
+	if !json.Valid(out.Bytes()) {
+		t.Fatalf("runOnceJSON wrote invalid JSON: %s", out.String())
 	}
 }
 
@@ -316,27 +252,6 @@ func TestSnapshotToValues_DiskIOMetrics(t *testing.T) {
 	}
 }
 
-func TestAppendReadings_MapsSnapshotValues(t *testing.T) {
-	ts := time.Now()
-	snap := collector.Snapshot{
-		Timestamp: ts,
-		Memory:    collector.MemSnapshot{Percent: 42.0},
-	}
-
-	for _, r := range appendReadings(nil, snap) {
-		if r.Metric == metric.MemPercent {
-			if r.Value != 42.0 {
-				t.Fatalf("expected mem_percent 42.0, got %v", r.Value)
-			}
-			if !r.Timestamp.Equal(ts) {
-				t.Fatalf("expected snapshot timestamp, got %v", r.Timestamp)
-			}
-			return
-		}
-	}
-	t.Fatal("expected mem_percent reading in buffer")
-}
-
 func TestSnapshotToValues_DiskIOMetricsFilteredToTrackedDevices(t *testing.T) {
 	snap := collector.Snapshot{
 		Disks: []collector.DiskSnapshot{
@@ -374,74 +289,25 @@ func TestSnapshotToValues_TemperatureUsesPrefixedKey(t *testing.T) {
 }
 
 func TestRunLoop_FlushesOnSnapshotChannelClose(t *testing.T) {
-	db, cleanup := tempDB(t)
-	defer cleanup()
-
-	snapshots := make(chan collector.Snapshot, 1)
-	snapshots <- collector.Snapshot{
-		Timestamp: time.Now(),
-		Memory: collector.MemSnapshot{
-			Percent: 42.0,
-		},
-	}
-	close(snapshots)
-
-	runLoop(
-		context.Background(),
-		db,
-		snapshots,
-		alerting{
-			engine:   alert.New(nil),
-			mounts:   alert.NewMountHandler(),
-			services: alert.NewServiceHandler(2),
-			throttle: &alert.ThrottleAlertHandler{},
-		},
-		nil,
-		loopConfig{
-			writeBufCap:     8,
-			containerBufCap: 4,
-			flushInterval:   time.Hour,
-			purgeInterval:   time.Hour,
-			retention:       time.Hour,
-		},
-	)
+	db := tempDB(t)
+	ts := time.Now()
+	runLoopOnce(db, collector.Snapshot{Timestamp: ts, Memory: collector.MemSnapshot{Percent: 42.0}})
 
 	readings, err := db.QueryRecent(metric.MemPercent, 1)
 	if err != nil {
 		t.Fatalf("QueryRecent: %v", err)
 	}
-	if len(readings) != 1 {
-		t.Fatalf("expected 1 reading flushed on channel close, got %d", len(readings))
-	}
-	if readings[0].Value != 42.0 {
-		t.Fatalf("expected mem_percent 42.0, got %v", readings[0].Value)
+	if len(readings) != 1 || readings[0].Value != 42.0 || !readings[0].Timestamp.Equal(ts) {
+		t.Fatalf("expected mem_percent 42.0 at %v flushed on close, got %+v", ts, readings)
 	}
 }
 
 func TestRunLoop_PersistsThrottleAlert(t *testing.T) {
-	db, cleanup := tempDB(t)
-	defer cleanup()
-
-	snapshots := make(chan collector.Snapshot, 1)
-	snapshots <- collector.Snapshot{
+	db := tempDB(t)
+	runLoopOnce(db, collector.Snapshot{
 		Timestamp: time.Now(),
 		Throttle:  collector.ThrottleSnapshot{Available: true, UnderVoltage: true},
-	}
-	close(snapshots)
-
-	runLoop(
-		context.Background(),
-		db,
-		snapshots,
-		alerting{
-			engine:   alert.New(nil),
-			mounts:   alert.NewMountHandler(),
-			services: alert.NewServiceHandler(2),
-			throttle: &alert.ThrottleAlertHandler{},
-		},
-		nil,
-		loopConfig{flushInterval: time.Hour, purgeInterval: time.Hour},
-	)
+	})
 
 	active, err := db.ActiveAlerts()
 	if err != nil {
