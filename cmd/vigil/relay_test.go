@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,24 +31,24 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Unbuffered: send blocks until the test reads, standing in for a stalled TUI.
+	// Unbuffered, so send stalls like a frozen TUI until the test reads.
 	got := make(chan tea.Msg)
 	r := newTUIRelay()
 	go r.run(ctx, func(m tea.Msg) { got <- m })
 
-	r.snapshot(snapAt(0))
-	if m := recv(t, got).(tui.SnapshotMsg); !m.Timestamp.Equal(time.Unix(0, 0)) {
-		t.Fatalf("first snapshot: got %v", m.Timestamp)
+	want := []tui.AlertMsg{
+		{Fired: []alert.State{{Name: "a1"}}},
+		{Resolved: []alert.State{{Name: "a1"}}},
+		{Fired: []alert.State{{Name: "a2"}}},
 	}
-
 	returned := make(chan struct{})
 	go func() {
-		r.alert([]alert.State{{Name: "a1"}}, nil)
+		for _, m := range want {
+			r.alert(m.Fired, m.Resolved)
+		}
 		for i := int64(1); i <= 100; i++ {
 			r.snapshot(snapAt(i))
 		}
-		r.alert(nil, []alert.State{{Name: "a1"}})
-		r.snapshot(snapAt(101))
 		close(returned)
 	}()
 	select {
@@ -58,7 +59,7 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 
 	var alerts []tui.AlertMsg
 	var snaps []time.Time
-	for len(snaps) == 0 || !snaps[len(snaps)-1].Equal(time.Unix(101, 0)) {
+	for len(snaps) == 0 || !snaps[len(snaps)-1].Equal(time.Unix(100, 0)) {
 		switch m := recv(t, got).(type) {
 		case tui.AlertMsg:
 			alerts = append(alerts, m)
@@ -67,10 +68,10 @@ func TestTUIRelay_StalledDashboardDoesNotBlockLoop(t *testing.T) {
 		}
 	}
 
-	if len(alerts) != 2 || len(alerts[0].Fired) != 1 || len(alerts[1].Resolved) != 1 {
-		t.Fatalf("alerts must arrive fire-then-resolve, got %+v", alerts)
+	if !reflect.DeepEqual(alerts, want) {
+		t.Fatalf("alerts lost or reordered: got %+v", alerts)
 	}
-	// Stale frames are coalesced: at most one batch was in flight when the stall began.
+	// At most one batch was in flight before the stall; the rest coalesce.
 	if len(snaps) > 2 {
 		t.Fatalf("got %d snapshots, want stale ones dropped", len(snaps))
 	}
