@@ -22,7 +22,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v3
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v3
         with:
           languages: go
 
