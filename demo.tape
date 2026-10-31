@@ -2,6 +2,10 @@
 # Run from the repo root: vhs demo.tape
 # Needs VHS (which pulls in ttyd) and ffmpeg. Builds vigil with -tags demo; see cmd/vigil/demo.go.
 #
+# On a machine short on memory, cap the run and keep its frames out of a RAM-backed /tmp.
+# Chromium's socket lives under TMPDIR, so keep that path short, and create it first:
+#   systemd-run --user --scope -p MemoryMax=2G -p MemorySwapMax=0 env TMPDIR=$HOME/.cache/vhs-tmp vhs demo.tape
+#
 # The README's GIF comes from the MP4 in two passes. Don't add an Output for it here:
 # VHS's GIF filter holds every raw frame in RAM while it builds the palette, which is
 # gigabytes for this take.

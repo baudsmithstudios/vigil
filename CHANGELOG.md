@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A resolved throttle alert can now be dismissed; it used to stay listed until restart
+- Panel rows too long for their panel are now cut at the panel's width instead of being mangled, which affected terminals 100-159 columns wide
+- Long container, service, mount, disk, and interface names no longer run into the next column
+
 ## [0.3.2] - 2026-10-16
 
 ### Fixed

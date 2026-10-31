@@ -369,7 +369,7 @@ Service Checker (goroutine) ───────────┘
 | `q` / `Ctrl+C` | Quit |
 | `j` / `↓` | Next alert |
 | `k` / `↑` | Previous alert |
-| `d` | Dismiss selected alert (except throttle, which clears on its own) |
+| `d` | Dismiss selected alert (an active throttle alert clears on its own; dismiss it once resolved) |
 | `m` | Mute/unmute notifications (session only) |
 
 ## Comparison
