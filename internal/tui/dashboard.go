@@ -51,6 +51,9 @@ func renderDashboard(
 				active = append(active, p)
 			}
 		}
+		if len(active) == 0 {
+			continue
+		}
 		weights := make([]int, len(active))
 		for i, p := range active {
 			weights[i] = p.weight

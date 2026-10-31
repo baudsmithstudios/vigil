@@ -240,3 +240,13 @@ func TestModel_ServicesPanelRendered(t *testing.T) {
 		t.Error("expected DOWN status in output")
 	}
 }
+
+func TestModel_RendersEveryLayoutWithNoOptInPanels(t *testing.T) {
+	for _, width := range []int{80, 120, 180} {
+		result, _ := New("dark", nil, nil).Update(tea.WindowSizeMsg{Width: width, Height: 40})
+		result, _ = result.(Model).Update(SnapshotMsg(collector.Snapshot{}))
+		if !strings.Contains(result.(Model).View(), "VIGIL") {
+			t.Errorf("width %d: expected the dashboard to render", width)
+		}
+	}
+}
