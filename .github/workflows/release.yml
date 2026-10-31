@@ -23,6 +23,26 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Build the release binary
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean --single-target --output dist/vigil
+
+      - name: Build the Docker image
+        run: docker build -t vigil:ci .
+
+      - name: Check release builds reject --demo
+        run: |
+          for vigil in dist/vigil "docker run --rm vigil:ci"; do
+            status=0
+            timeout 10 $vigil --demo || status=$?
+            if [ "$status" -ne 2 ]; then
+              echo "$vigil --demo exited $status, want 2"
+              exit 1
+            fi
+          done
+
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: "~> v2"
