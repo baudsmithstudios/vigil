@@ -16,7 +16,7 @@ const (
 	// demoEndTick is the last scripted tick; every later tick repeats the calm state.
 	demoEndTick = 60
 
-	// The CPU spike also drives temperature, load and homeassistant's CPU.
+	// The CPU spike also drives temperature, load and hass's CPU.
 	cpuBusyFrom, cpuBusyTo = 13, 45
 	// The broker outage takes down both the mqtt service and the mosquitto container.
 	mqttDownFrom, mqttDownTo = 26, 45
@@ -129,7 +129,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		Load:        load,
 		Temperature: []collector.TempSnapshot{{SensorKey: "cpu_thermal", Celsius: temp}},
 		Containers: []collector.ContainerSnapshot{
-			{Name: "homeassistant", ID: "3f9a1c2e7b4d", Status: "running", CPUPercent: haCPU, MemUsed: 412 * mib},
+			{Name: "hass", ID: "3f9a1c2e7b4d", Status: "running", CPUPercent: haCPU, MemUsed: 412 * mib},
 			{Name: "pihole", ID: "a81e5d0c9f62", Status: "running", CPUPercent: 0.6 + drift(9, 0.2), MemUsed: 96 * mib},
 			{Name: "mosquitto", ID: "c47b20e8d1a5", Status: mosquitto, CPUPercent: 0.2, MemUsed: 9 * mib},
 			{Name: "grafana", ID: "e2d6f8a03b19", Status: "running", CPUPercent: 1.4 + drift(11, 0.5), MemUsed: 154 * mib},
@@ -141,7 +141,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 			{Path: "/media/usb0", Label: "USB Backup", Mounted: !(during(21, 25) && tick%2 == 1)},
 		},
 		Services: []checker.ServiceStatus{
-			{Name: "homeassistant", CheckType: "http", Up: true, StatusCode: 200, Latency: time.Duration(18+drift(9, 4)) * time.Millisecond, CheckedAt: checkedAt},
+			{Name: "hass", CheckType: "http", Up: true, StatusCode: 200, Latency: time.Duration(18+drift(9, 4)) * time.Millisecond, CheckedAt: checkedAt},
 			{Name: "grafana", CheckType: "http", Up: true, StatusCode: 200, Latency: time.Duration(32+drift(11, 6)) * time.Millisecond, CheckedAt: checkedAt},
 			mqtt,
 		},
