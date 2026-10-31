@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Resolved throttle alerts can now be dismissed
-- Over-long panel rows no longer garble on terminals 100-159 columns wide
+- Long panel rows no longer break the display on terminals 100-159 columns wide
 - Long names no longer run into the next column
 
 ### Security

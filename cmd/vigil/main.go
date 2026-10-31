@@ -25,7 +25,7 @@ import (
 // version is stamped at build time by goreleaser via -ldflags.
 var version = "dev"
 
-// demo runs the scripted demo when --demo is passed; only demo builds (-tags demo) set it.
+// demo is set only by -tags demo builds; it reports whether --demo ran.
 var demo func() (ran bool)
 
 func main() {
