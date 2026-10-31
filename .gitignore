@@ -48,3 +48,6 @@ credentials*
 .vscode/
 .superpowers/
 .worktrees/
+
+# Demo video for the portfolio site, copied there by hand
+assets/demo.mp4

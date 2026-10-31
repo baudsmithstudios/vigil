@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/dashboard.png" alt="Vigil dashboard" width="800">
+  <img src="assets/demo.gif" alt="Vigil dashboard demo: live metrics, alerts firing and resolving, and the help, mute, and dismiss keys" width="800">
 </p>
 
 <p align="center">
