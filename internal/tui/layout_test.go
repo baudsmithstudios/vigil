@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"vigil/internal/checker"
 	"vigil/internal/collector"
 )
 
@@ -122,6 +123,19 @@ func TestRenderPanel_TruncatesStyledLineByVisibleWidth(t *testing.T) {
 	}
 	if got := lipgloss.Width(row); got != width+2 {
 		t.Errorf("row width = %d, want %d: %q", got, width+2, row)
+	}
+}
+
+func TestLongNameKeepsGapBeforeNextColumn(t *testing.T) {
+	const name = "homeassistant"
+
+	containers := renderContainerContent([]collector.ContainerSnapshot{{Name: name, Status: "running"}})
+	if !strings.Contains(containers, "… ●") {
+		t.Errorf("no gap after truncated container name: %q", containers)
+	}
+	services := renderServiceContent([]checker.ServiceStatus{{Name: name, Up: true}})
+	if !strings.Contains(services, "… ✓") {
+		t.Errorf("no gap after truncated service name: %q", services)
 	}
 }
 

@@ -289,7 +289,7 @@ func renderDiskContent(disks []collector.DiskSnapshot, io []collector.DiskIOSnap
 		return sb.String()
 	}
 	for _, d := range disks {
-		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(d.MountPoint, 12))))
+		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(d.MountPoint, maxLabelLen))))
 		sb.WriteString(renderGauge(d.Percent, gaugeW))
 		sb.WriteString(valueStyle.Render(fmt.Sprintf(" %5.1f", d.Percent)))
 		sb.WriteString(unitStyle.Render("%\n"))
@@ -316,7 +316,7 @@ func renderNetContent(nets []collector.NetSnapshot, width int) string {
 		return sb.String()
 	}
 	for _, n := range nets {
-		left := labelStyle.Render(fmt.Sprintf("  %-12s", truncate(n.Interface, 12)))
+		left := labelStyle.Render(fmt.Sprintf("  %-12s", truncate(n.Interface, maxLabelLen)))
 		left += dimStyle.Render("↑ ")
 		left += valueStyle.Render(formatRate(n.SendRate))
 		left += dimStyle.Render("  ↓ ")
@@ -349,7 +349,7 @@ func renderContainerContent(containers []collector.ContainerSnapshot) string {
 		return sb.String()
 	}
 	for _, c := range containers {
-		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(c.Name, 12))))
+		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(c.Name, maxLabelLen))))
 
 		// Color-code the status.
 		switch c.Status {
@@ -397,7 +397,7 @@ func renderMountContent(mounts []collector.MountStatus, width int) string {
 		if label == "" {
 			label = m.Path
 		}
-		left := labelStyle.Render(fmt.Sprintf("  %-12s", truncate(label, 12)))
+		left := labelStyle.Render(fmt.Sprintf("  %-12s", truncate(label, maxLabelLen)))
 		left += dimStyle.Render(fmt.Sprintf("%-*s", pathW, truncate(m.Path, pathW)))
 
 		var right string
@@ -425,7 +425,7 @@ func renderServiceContent(services []checker.ServiceStatus) string {
 	var sb strings.Builder
 
 	for _, s := range services {
-		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(s.Name, 12))))
+		sb.WriteString(labelStyle.Render(fmt.Sprintf("  %-12s", truncate(s.Name, maxLabelLen))))
 		if s.Up {
 			sb.WriteString(serviceUpStyle.Render("✓ UP  "))
 			sb.WriteString(valueStyle.Render(fmt.Sprintf("%4dms", s.Latency.Milliseconds())))
@@ -542,6 +542,9 @@ func formatBytes(b uint64) string {
 func formatRate(bps float64) string {
 	return formatBytes(uint64(bps)) + "/s"
 }
+
+// maxLabelLen is one under the 12-char label column, so a truncated label never touches the next column.
+const maxLabelLen = 11
 
 func truncate(s string, n int) string {
 	if len(s) <= n {
