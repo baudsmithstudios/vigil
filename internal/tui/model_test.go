@@ -9,6 +9,7 @@ import (
 	"vigil/internal/alert"
 	"vigil/internal/checker"
 	"vigil/internal/collector"
+	"vigil/internal/metric"
 )
 
 func TestModel_AlertFireAndResolve(t *testing.T) {
@@ -70,6 +71,32 @@ func TestModel_DismissResolvedAlert(t *testing.T) {
 	m = result.(Model)
 	if len(m.activeAlerts) != 0 {
 		t.Errorf("expected 0 alerts after dismissing resolved alert, got %d", len(m.activeAlerts))
+	}
+}
+
+func TestModel_DismissResolvedThrottleAlert(t *testing.T) {
+	m := New("dark", nil, nil)
+	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: metric.AlertThrottle, Message: "under-voltage detected"}}})
+	m = result.(Model)
+	result, _ = m.Update(AlertMsg{Resolved: []alert.State{{Name: metric.AlertThrottle}}})
+	m = result.(Model)
+
+	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = result.(Model)
+	if len(m.activeAlerts) != 0 {
+		t.Errorf("expected resolved throttle alert dismissed, got %d alerts", len(m.activeAlerts))
+	}
+}
+
+func TestModel_ActiveThrottleAlertIsNotDismissable(t *testing.T) {
+	m := New("dark", nil, nil)
+	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: metric.AlertThrottle, Message: "under-voltage detected"}}})
+	m = result.(Model)
+
+	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = result.(Model)
+	if len(m.activeAlerts) != 1 {
+		t.Errorf("expected active throttle alert kept, got %d alerts", len(m.activeAlerts))
 	}
 }
 
