@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Panel rows too long for their panel are now cut at the panel's width instead of being mangled, which affected terminals 100-159 columns wide
 - Long container, service, mount, disk, and interface names no longer run into the next column
 
+### Security
+
+- Built with Go 1.26.10 to fix a standard-library vulnerability in `crypto/x509` (GO-2026-6809)
+
 ## [0.3.2] - 2026-10-16
 
 ### Fixed
