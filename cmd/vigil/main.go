@@ -25,6 +25,9 @@ import (
 // version is stamped at build time by goreleaser via -ldflags.
 var version = "dev"
 
+// demo is set only by -tags demo builds; it reports whether --demo ran.
+var demo func() (ran bool)
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		runInitCmd(os.Args[2:])
@@ -42,6 +45,9 @@ func main() {
 	jsonOutput := flag.Bool("json", false, "write JSON output")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if demo != nil && demo() {
+		return
+	}
 
 	if *showVersion {
 		fmt.Println(version)

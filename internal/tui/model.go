@@ -74,11 +74,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "d":
 				if len(m.activeAlerts) > 0 {
-					// Throttle alerts auto-resolve only; skip manual dismiss.
-					if m.activeAlerts[m.alertCursor].Name == metric.AlertThrottle {
+					dismissed := m.activeAlerts[m.alertCursor]
+					// An active throttle alert resolves itself when power recovers; skip manual dismiss.
+					if dismissed.Name == metric.AlertThrottle && !dismissed.Resolved {
 						break
 					}
-					dismissed := m.activeAlerts[m.alertCursor]
 					m.activeAlerts = append(m.activeAlerts[:m.alertCursor], m.activeAlerts[m.alertCursor+1:]...)
 					if m.alertCursor >= len(m.activeAlerts) && m.alertCursor > 0 {
 						m.alertCursor--

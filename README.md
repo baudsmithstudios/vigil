@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/dashboard.png" alt="Vigil dashboard" width="800">
+  <img src="assets/demo.gif" alt="Vigil dashboard demo" width="800">
 </p>
 
 <p align="center">
@@ -369,7 +369,7 @@ Service Checker (goroutine) ───────────┘
 | `q` / `Ctrl+C` | Quit |
 | `j` / `↓` | Next alert |
 | `k` / `↑` | Previous alert |
-| `d` | Dismiss selected alert (except throttle, which clears on its own) |
+| `d` | Dismiss selected alert (except active throttle alerts) |
 | `m` | Mute/unmute notifications (session only) |
 
 ## Comparison
