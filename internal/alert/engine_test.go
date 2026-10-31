@@ -341,3 +341,16 @@ func TestEngine_ShadowedKeyDoesNotFireGenericOnResolve(t *testing.T) {
 		t.Errorf("generic rule must not fire on shadowed key, got %+v", fired)
 	}
 }
+
+func TestEngine_DeltaFiresDuringSustainWindow(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "cpu_percent", Threshold: 50.0, Above: true, DeltaThreshold: 30.0, SustainedTicks: 3},
+	}
+	eng := New(rules)
+	eng.Evaluate(map[string]float64{"cpu_percent": 10.0})
+
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
+	if len(fired) != 1 || fired[0].Name != "cpu_percent:delta" {
+		t.Fatalf("expected the delta alert while the threshold sustains, got %+v", fired)
+	}
+}

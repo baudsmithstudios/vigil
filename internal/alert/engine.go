@@ -119,17 +119,16 @@ func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 				if triggered {
 					if _, alreadyFiring := e.firing[key]; !alreadyFiring {
 						e.sustains[key]++
-						if rule.SustainedTicks > 0 && e.sustains[key] < rule.SustainedTicks {
-							continue
+						if e.sustains[key] >= rule.SustainedTicks {
+							msg := rule.Message
+							if key != rule.Metric {
+								msg += keySuffix(key)
+							}
+							s := State{Name: key, Message: msg, FiredAt: time.Now()}
+							e.firing[key] = s
+							fired = append(fired, s)
+							delete(e.sustains, key)
 						}
-						msg := rule.Message
-						if key != rule.Metric {
-							msg += keySuffix(key)
-						}
-						s := State{Name: key, Message: msg, FiredAt: time.Now()}
-						e.firing[key] = s
-						fired = append(fired, s)
-						delete(e.sustains, key)
 					}
 				} else {
 					delete(e.sustains, key)
