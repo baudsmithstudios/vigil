@@ -11,10 +11,6 @@ import (
 	"vigil/internal/collector"
 )
 
-// renderDashboard lays out all sections in a panel grid using the layout engine.
-// Panel render functions produce content strings; selectLayout chooses the row
-// grouping based on terminal width; renderRow handles width distribution and
-// empty-panel filtering.
 func renderDashboard(
 	snap collector.Snapshot,
 	activeAlerts []alert.State,
@@ -24,8 +20,6 @@ func renderDashboard(
 ) string {
 	rows := selectLayout(width)
 
-	// Determine which optional panels have content so we can compute
-	// accurate widths after filtering (renderRow drops empty panels).
 	hasContainers := len(snap.Containers) > 0
 	hasServices := len(snap.Services) > 0
 	hasMounts := len(snap.Mounts) > 0
@@ -34,8 +28,7 @@ func renderDashboard(
 		"ctr": hasContainers, "svc": hasServices, "mnt": hasMounts,
 	}
 
-	// Compute per-panel inner widths using only panels that have content,
-	// matching the filtering that renderRow performs.
+	// Matches renderRow, which drops panels with no content.
 	innerWidths := make(map[string]int)
 	for _, row := range rows {
 		var active []panelSpec
@@ -50,6 +43,9 @@ func renderDashboard(
 			} else if hasContent[p.name] {
 				active = append(active, p)
 			}
+		}
+		if len(active) == 0 {
+			continue
 		}
 		weights := make([]int, len(active))
 		for i, p := range active {
@@ -84,7 +80,6 @@ func renderDashboard(
 		contents["mnt"] = renderMountContent(snap.Mounts, innerWidths["mnt"])
 	}
 
-	// Override alerts title when muted.
 	titles := map[string]string{}
 	if muted {
 		titles["alerts"] = "Alerts [MUTED]"
@@ -107,7 +102,6 @@ func renderHeader(width int, snap collector.Snapshot, alertCount int) string {
 	help := hintKeyStyle.Render("?") + dimStyle.Render(" help") + " "
 	pipe := dividerStyle.Render(" │ ")
 
-	// Center section: load, temperature, uptime separated by pipes.
 	var centerParts []string
 	load := snap.Load
 	centerParts = append(centerParts, dimStyle.Render("load ")+
@@ -124,7 +118,6 @@ func renderHeader(width int, snap collector.Snapshot, alertCount int) string {
 		centerParts = append(centerParts, dimStyle.Render("up ")+valueStyle.Render(formatUptime(snap.UptimeSec)))
 	}
 
-	// Right section: throttle warning, alert count, then help anchored at far right.
 	var rightParts []string
 	if snap.Throttle.Available {
 		switch snap.Throttle.Status() {
@@ -143,8 +136,6 @@ func renderHeader(width int, snap collector.Snapshot, alertCount int) string {
 	center := strings.Join(centerParts, pipe)
 	rightInfo := strings.Join(rightParts, pipe)
 
-	// Layout: title ... center ... rightInfo   ? help
-	// Try full layout first.
 	rightFull := rightInfo
 	if rightFull != "" {
 		rightFull += "   "
@@ -158,8 +149,8 @@ func renderHeader(width int, snap collector.Snapshot, alertCount int) string {
 		return headerStyle.Render(title + strings.Repeat(" ", leftGap) + center + strings.Repeat(" ", rightGap) + rightFull)
 	}
 
-	// Narrow: drop alerts and uptime from center, keep load + temp.
-	shortCenter := centerParts[0] // just load
+	// Narrow: load and temperature only.
+	shortCenter := centerParts[0]
 	if len(snap.Temperature) > 0 {
 		shortCenter = strings.Join(centerParts[:2], pipe)
 	}
@@ -225,9 +216,6 @@ func renderCPUContent(cpu collector.CPUSnapshot, innerW int) string {
 			}
 		}
 
-		// Adapt CPU breakdown line length to available width.
-		// Full:    "  usr X%  sys X%  iowait X%  idle X%" (~52 chars)
-		// Compact: "  u X%  s X%  iow X%  id X%"          (~43 chars)
 		switch {
 		case innerW >= 52:
 			sb.WriteString(dimStyle.Render(fmt.Sprintf(
@@ -351,7 +339,6 @@ func renderContainerContent(containers []collector.ContainerSnapshot) string {
 	for _, c := range containers {
 		sb.WriteString(renderLabel(c.Name))
 
-		// Color-code the status.
 		switch c.Status {
 		case "running":
 			sb.WriteString(containerRunningStyle.Render("● run "))
@@ -383,7 +370,6 @@ func renderContainerContent(containers []collector.ContainerSnapshot) string {
 func renderMountContent(mounts []collector.MountStatus, width int) string {
 	var sb strings.Builder
 
-	// Adapt path column width to available panel width.
 	pathW := 20
 	if width < 50 {
 		pathW = width - 26 // leave room for label(14) + status(~12)
@@ -478,7 +464,7 @@ func renderAlertContent(alerts []alert.State, cursor int, muted bool) string {
 	return sb.String()
 }
 
-// renderTemp colors by heat level; thresholds tuned for Pi: <50 normal, 50-70 warm, ≥70 hot.
+// renderTemp thresholds are tuned for the Pi.
 func renderTemp(c float64) string {
 	s := fmt.Sprintf("%.1f", c)
 	switch {
@@ -491,7 +477,6 @@ func renderTemp(c float64) string {
 	}
 }
 
-// renderGauge draws a bar colored green/yellow/red by severity (<70/70-90/≥90 %).
 func renderGauge(percent float64, width int) string {
 	if percent < 0 {
 		percent = 0

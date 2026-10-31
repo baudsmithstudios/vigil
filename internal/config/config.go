@@ -14,7 +14,6 @@ import (
 
 const DefaultNtfyServer = ntfy.DefaultServer
 
-// Alert defines a threshold-based alert rule.
 type Alert struct {
 	Metric         string  `toml:"metric"`
 	Threshold      float64 `toml:"threshold"`
@@ -24,47 +23,40 @@ type Alert struct {
 	SustainedTicks int     `toml:"sustained_ticks"` // consecutive ticks above threshold before firing (0 = immediate)
 }
 
-// Notifications configures outbound alert delivery.
 type Notifications struct {
-	DiscordWebhook string   `toml:"discord_webhook"` // Discord webhook URL
-	WebhookURL     string   `toml:"webhook_url"`     // Generic webhook URL (POST JSON)
-	NtfyTopic      string   `toml:"ntfy_topic"`      // ntfy topic name
-	NtfyServer     string   `toml:"ntfy_server"`     // ntfy server URL
-	QuietHours     []string `toml:"quiet_hours"`     // e.g. ["02:00-06:00", "12:00-13:00"]
+	DiscordWebhook string   `toml:"discord_webhook"`
+	WebhookURL     string   `toml:"webhook_url"`
+	NtfyTopic      string   `toml:"ntfy_topic"`
+	NtfyServer     string   `toml:"ntfy_server"`
+	QuietHours     []string `toml:"quiet_hours"` // e.g. ["02:00-06:00", "12:00-13:00"]
 }
 
-// Docker configures Docker container monitoring.
 type Docker struct {
-	Socket string `toml:"socket"` // Docker socket path (empty = disabled)
+	Socket string `toml:"socket"` // empty = disabled
 }
 
-// MountCheck defines an expected mount point to watch.
 type MountCheck struct {
 	Path  string `toml:"path"`
 	Label string `toml:"label"`
 }
 
-// Services configures service health check behavior.
 type Services struct {
 	Interval            duration `toml:"interval"`
 	FailuresBeforeAlert int      `toml:"failures_before_alert"`
 }
 
-// HTTPCheck defines an HTTP endpoint health check.
 type HTTPCheck struct {
 	Name           string `toml:"name"`
 	URL            string `toml:"url"`
 	ExpectedStatus int    `toml:"expected_status"`
 }
 
-// PortCheck defines a TCP port health check.
 type PortCheck struct {
 	Name string `toml:"name"`
 	Host string `toml:"host"`
 	Port int    `toml:"port"`
 }
 
-// Config holds all vigil configuration.
 type Config struct {
 	DBPath        string        `toml:"db_path"`
 	Interval      duration      `toml:"interval"`
@@ -116,13 +108,12 @@ func Defaults() Config {
 	}
 }
 
-// Load reads a TOML config file, falling back to defaults for missing fields.
 func Load(path string) (Config, error) {
 	cfg := Defaults()
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil // file not found → use defaults
+			return cfg, nil
 		}
 		return cfg, err
 	}

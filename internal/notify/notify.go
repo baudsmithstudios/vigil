@@ -17,12 +17,10 @@ import (
 	"vigil/internal/ntfy"
 )
 
-// Mute is a thread-safe notification suppression toggle.
 type Mute struct {
 	muted atomic.Bool
 }
 
-// Toggle returns the new mute state after flipping.
 func (m *Mute) Toggle() bool {
 	for {
 		old := m.muted.Load()
@@ -38,7 +36,6 @@ func (m *Mute) IsMuted() bool {
 
 var client = &http.Client{Timeout: 10 * time.Second}
 
-// ValidateURL requires a parseable HTTPS URL with a host.
 func ValidateURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -57,7 +54,6 @@ type Notifier interface {
 	Send(ctx context.Context, a alert.State, resolved bool) error
 }
 
-// Multi fans out to multiple notifiers.
 type Multi []Notifier
 
 func (m Multi) Send(ctx context.Context, a alert.State, resolved bool) error {
@@ -88,7 +84,6 @@ func (d Discord) Send(ctx context.Context, a alert.State, resolved bool) error {
 	return postJSON(ctx, d.WebhookURL, map[string]string{"content": msg})
 }
 
-// Webhook posts the alert as JSON to a generic HTTP endpoint.
 type Webhook struct {
 	URL string
 }
@@ -131,12 +126,10 @@ func (n Ntfy) Send(ctx context.Context, a alert.State, resolved bool) error {
 	return postText(ctx, endpoint, "Vigil alert", msg)
 }
 
-// QuietWindow is a daily suppression range; minutes since midnight.
 type QuietWindow struct {
 	Start, End int // minutes since midnight
 }
 
-// ParseQuietHours parses strings like "02:00-06:00" into QuietWindow values.
 func ParseQuietHours(specs []string) ([]QuietWindow, error) {
 	var windows []QuietWindow
 	for _, s := range specs {
@@ -169,12 +162,11 @@ func IsQuiet(now time.Time, windows []QuietWindow) bool {
 	mins := now.Hour()*60 + now.Minute()
 	for _, w := range windows {
 		if w.Start <= w.End {
-			// Same-day window: e.g. 02:00-06:00
 			if mins >= w.Start && mins < w.End {
 				return true
 			}
 		} else {
-			// Overnight window: e.g. 23:00-05:00
+			// Overnight, e.g. 23:00-05:00
 			if mins >= w.Start || mins < w.End {
 				return true
 			}
@@ -183,7 +175,6 @@ func IsQuiet(now time.Time, windows []QuietWindow) bool {
 	return false
 }
 
-// Quiet suppresses sends during quiet windows or when muted.
 type Quiet struct {
 	Inner   Notifier
 	Windows []QuietWindow

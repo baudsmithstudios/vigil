@@ -5,7 +5,19 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestRunnerCollect_ReadsTheHost(t *testing.T) {
+	r, _ := New(time.Second, "", nil, nil)
+	snap := r.Collect(time.Now())
+	if snap.Memory.TotalBytes == 0 {
+		t.Error("expected non-zero memory total")
+	}
+	if snap.UptimeSec == 0 {
+		t.Error("expected non-zero uptime")
+	}
+}
 
 func TestRunnerDeliver_LogsStallOnceAndDropCountOnResume(t *testing.T) {
 	var logs bytes.Buffer

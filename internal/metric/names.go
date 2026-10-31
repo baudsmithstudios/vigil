@@ -1,6 +1,5 @@
 package metric
 
-// Metric name constants used for persistence and alert evaluation.
 const (
 	CPUPercent  = "cpu_percent"
 	CPUUser     = "cpu_user"
@@ -21,7 +20,6 @@ const (
 	ThrottleRaw = "throttle_raw"
 )
 
-// Prefixes for dynamic metric keys (appended with ":" + identifier).
 const (
 	PrefixDiskPercent   = "disk_percent:"
 	PrefixDiskRead      = "disk_read:"
@@ -38,8 +36,8 @@ const (
 	PrefixNetErrors     = "net_errors:"
 )
 
-// Alert name for throttle conditions (managed outside the alert engine).
+// Managed outside the alert engine.
 const AlertThrottle = "throttle"
 
-// Alert name prefix for service health checks (managed outside the alert engine).
+// Managed outside the alert engine.
 const PrefixServiceDown = "service_down:"

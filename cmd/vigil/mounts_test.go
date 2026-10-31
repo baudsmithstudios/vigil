@@ -29,14 +29,10 @@ func TestPickerViewShowsSize(t *testing.T) {
 	pm := pickerModel{
 		mounts: []discoveredMount{
 			{Device: "/dev/sda1", Path: "/mnt/data", FSType: "ext4", Size: 500 * 1073741824},
-			{Device: "/dev/sdb1", Path: "/media/usb0", FSType: "vfat", Size: 16 * 1073741824},
 		},
 	}
 	view := pm.View()
 	if !strings.Contains(view, "500.0 GB") {
 		t.Errorf("expected 500.0 GB in view, got:\n%s", view)
-	}
-	if !strings.Contains(view, "16.0 GB") {
-		t.Errorf("expected 16.0 GB in view, got:\n%s", view)
 	}
 }

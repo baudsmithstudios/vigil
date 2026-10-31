@@ -9,7 +9,6 @@ func TestShouldCollectFS(t *testing.T) {
 		}
 	}
 
-	// "TMPFS" covers the case-insensitive match.
 	for _, fs := range []string{"tmpfs", "TMPFS", "overlay", "proc", "squashfs"} {
 		if ShouldCollectFS(fs) {
 			t.Errorf("expected ShouldCollectFS(%q) = false", fs)
@@ -24,7 +23,6 @@ func TestShouldCollectInterface(t *testing.T) {
 		}
 	}
 
-	// One name per excluded prefix, plus loopback.
 	for _, iface := range []string{"lo", "docker0", "veth3f8a2b", "br-9f3d2a1c", "virbr0", "dummy0", "tunl0"} {
 		if shouldCollectInterface(iface) {
 			t.Errorf("expected shouldCollectInterface(%q) = false", iface)

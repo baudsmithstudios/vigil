@@ -21,13 +21,13 @@ func TestEngine_Fires(t *testing.T) {
 	}
 }
 
-func TestEngine_DoesNotFireBelowThreshold(t *testing.T) {
+func TestEngine_DoesNotFireAtThreshold(t *testing.T) {
 	rules := []config.Alert{
 		{Metric: "cpu_percent", Threshold: 90.0, Above: true, Message: "CPU high"},
 	}
 	eng := New(rules)
 
-	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 40.0})
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 90.0})
 	if len(fired) != 0 {
 		t.Errorf("expected 0 alerts, got %d", len(fired))
 	}
@@ -292,7 +292,6 @@ func TestEngine_SpecificRuleShadowsGeneric(t *testing.T) {
 	}
 	eng := New(rules)
 
-	// mmcblk0 sits between the generic and specific thresholds.
 	fired, _ := eng.Evaluate(map[string]float64{
 		"disk_latency_ms:mmcblk0": 100.0,
 		"disk_latency_ms:sda":     75.0,
@@ -332,12 +331,24 @@ func TestEngine_ShadowedKeyDoesNotFireGenericOnResolve(t *testing.T) {
 	eng := New(rules)
 	eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 250.0})
 
-	// Drops between the generic and specific thresholds.
 	fired, resolved := eng.Evaluate(map[string]float64{"disk_latency_ms:mmcblk0": 100.0})
 	if len(resolved) != 1 || resolved[0].Name != "disk_latency_ms:mmcblk0" {
 		t.Fatalf("expected specific rule to resolve, got %+v", resolved)
 	}
 	if len(fired) != 0 {
 		t.Errorf("generic rule must not fire on shadowed key, got %+v", fired)
+	}
+}
+
+func TestEngine_DeltaFiresDuringSustainWindow(t *testing.T) {
+	rules := []config.Alert{
+		{Metric: "cpu_percent", Threshold: 50.0, Above: true, DeltaThreshold: 30.0, SustainedTicks: 3},
+	}
+	eng := New(rules)
+	eng.Evaluate(map[string]float64{"cpu_percent": 10.0})
+
+	fired, _ := eng.Evaluate(map[string]float64{"cpu_percent": 80.0})
+	if len(fired) != 1 || fired[0].Name != "cpu_percent:delta" {
+		t.Fatalf("expected the delta alert while the threshold sustains, got %+v", fired)
 	}
 }

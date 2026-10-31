@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -175,4 +176,154 @@ func useTestHTTPClient(t *testing.T, c *http.Client) {
 	t.Cleanup(func() {
 		client = old
 	})
+}
+
+type countNotifier struct{ sent *int }
+
+func (c countNotifier) Send(_ context.Context, _ alert.State, _ bool) error {
+	*c.sent++
+	return nil
+}
+
+func TestValidateURL(t *testing.T) {
+	tests := []struct {
+		raw     string
+		wantErr bool
+	}{
+		{"https://hooks.example.com/alert", false},
+		{"HTTPS://hooks.example.com/alert", false},
+		{"http://hooks.example.com/alert", true},
+		{"https://", true},
+		{"://bad", true},
+	}
+	for _, tt := range tests {
+		if err := ValidateURL(tt.raw); (err != nil) != tt.wantErr {
+			t.Errorf("ValidateURL(%q) error = %v, wantErr %v", tt.raw, err, tt.wantErr)
+		}
+	}
+}
+
+func TestParseQuietHours(t *testing.T) {
+	got, err := ParseQuietHours([]string{"02:00-06:30", "23:00 - 05:00"})
+	if err != nil {
+		t.Fatalf("ParseQuietHours: %v", err)
+	}
+	want := []QuietWindow{{Start: 120, End: 390}, {Start: 1380, End: 300}}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+
+	for _, spec := range []string{"02:00", "25:00-06:00", "02:00-24:00", "never"} {
+		if _, err := ParseQuietHours([]string{spec}); err == nil {
+			t.Errorf("ParseQuietHours(%q): expected error", spec)
+		}
+	}
+}
+
+func TestIsQuiet(t *testing.T) {
+	sameDay := []QuietWindow{{Start: 2 * 60, End: 6 * 60}}
+	overnight := []QuietWindow{{Start: 23 * 60, End: 5 * 60}}
+	tests := []struct {
+		name    string
+		hour    int
+		minute  int
+		windows []QuietWindow
+		want    bool
+	}{
+		{"before a same-day window", 1, 59, sameDay, false},
+		{"start is inclusive", 2, 0, sameDay, true},
+		{"last minute of a same-day window", 5, 59, sameDay, true},
+		{"end is exclusive", 6, 0, sameDay, false},
+		{"before an overnight window", 22, 59, overnight, false},
+		{"overnight start", 23, 0, overnight, true},
+		{"overnight after midnight", 0, 0, overnight, true},
+		{"overnight end is exclusive", 5, 0, overnight, false},
+		{"equal start and end is never quiet", 2, 0, []QuietWindow{{Start: 120, End: 120}}, false},
+		{"no windows", 2, 0, nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now := time.Date(2026, 10, 31, tt.hour, tt.minute, 0, 0, time.UTC)
+			if got := IsQuiet(now, tt.windows); got != tt.want {
+				t.Errorf("IsQuiet = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestQuietSendSuppresses(t *testing.T) {
+	muted := &Mute{}
+	muted.Toggle()
+	allDay := []QuietWindow{{Start: 0, End: 24 * 60}}
+	tests := []struct {
+		name    string
+		mute    *Mute
+		windows []QuietWindow
+		want    int
+	}{
+		{"no mute and no windows", nil, nil, 1},
+		{"unmuted", &Mute{}, nil, 1},
+		{"muted", muted, nil, 0},
+		{"inside a quiet window", nil, allDay, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sent := 0
+			q := Quiet{Inner: countNotifier{&sent}, Windows: tt.windows, Mute: tt.mute}
+			if err := q.Send(context.Background(), alert.State{Name: "cpu_percent"}, false); err != nil {
+				t.Fatalf("Send() error = %v", err)
+			}
+			if sent != tt.want {
+				t.Errorf("sent %d, want %d", sent, tt.want)
+			}
+		})
+	}
+}
+
+func TestMuteToggleReportsNewState(t *testing.T) {
+	var m Mute
+	if !m.Toggle() || !m.IsMuted() {
+		t.Error("expected the first toggle to mute")
+	}
+	if m.Toggle() || m.IsMuted() {
+		t.Error("expected the second toggle to unmute")
+	}
+}
+
+func TestWebhookSendPostsAlertJSON(t *testing.T) {
+	var got map[string]string
+	var gotContentType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotContentType = r.Header.Get("Content-Type")
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	a := alert.State{Name: "cpu_percent", Message: "CPU high", FiredAt: time.Date(2026, 5, 6, 14, 15, 16, 0, time.UTC)}
+	if err := (Webhook{URL: srv.URL}).Send(context.Background(), a, true); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if gotContentType != "application/json" {
+		t.Errorf("Content-Type = %q", gotContentType)
+	}
+	want := map[string]string{"name": "cpu_percent", "message": "CPU high", "status": "resolved", "since": "2026-05-06T14:15:16Z"}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestDiscordSendReportsServerRejection(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad token", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	err := Discord{WebhookURL: srv.URL}.Send(context.Background(), alert.State{Name: "cpu_percent"}, false)
+	if err == nil || !strings.Contains(err.Error(), "401") || !strings.Contains(err.Error(), "bad token") {
+		t.Fatalf("expected the status and body in the error, got %v", err)
+	}
 }

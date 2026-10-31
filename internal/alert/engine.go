@@ -9,7 +9,6 @@ import (
 	"vigil/internal/config"
 )
 
-// State is a fired alert; Resolved indicates whether it has since cleared.
 type State struct {
 	Name       string
 	Message    string
@@ -18,14 +17,13 @@ type State struct {
 	ResolvedAt time.Time
 }
 
-// Engine evaluates threshold and delta rules and tracks per-key firing state.
 type Engine struct {
 	mu       sync.Mutex
 	rules    []config.Alert
-	firing   map[string]State    // keyed by alert key (metric or metric:delta)
-	prev     map[string]float64  // previous tick values for delta calculation
-	sustains map[string]int      // consecutive ticks above threshold per rule+key
-	shadowed map[string]struct{} // value keys covered by a specific (suffixed) rule
+	firing   map[string]State // by alert key: metric or metric:delta
+	prev     map[string]float64
+	sustains map[string]int      // consecutive ticks over threshold, by value key
+	shadowed map[string]struct{} // value keys with their own rule
 }
 
 // A specific rule like "disk_latency_ms:mmcblk0" shadows the generic rule
@@ -46,7 +44,6 @@ func New(rules []config.Alert) *Engine {
 	}
 }
 
-// Restore reloads previously-firing alerts so they survive restarts.
 func (e *Engine) Restore(states []State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -64,14 +61,12 @@ func (e *Engine) Dismiss(name string) {
 	delete(e.firing, name)
 }
 
-// deltaKey is the firing-map key used for a metric's delta alert.
 func deltaKey(metric string) string {
 	return metric + ":delta"
 }
 
-// matchingKeys returns the value keys a rule should evaluate against:
-// the exact match if present, else all "ruleMetric:*" keys not shadowed by
-// a more specific rule. Returns nil for a suffixed rule with no exact match.
+// matchingKeys returns the exact match if present, else all unshadowed
+// "ruleMetric:*" keys. A suffixed rule with no exact match gets nil.
 func matchingKeys(ruleMetric string, values map[string]float64, shadowed map[string]struct{}) []string {
 	if _, ok := values[ruleMetric]; ok {
 		return []string{ruleMetric}
@@ -93,7 +88,6 @@ func matchingKeys(ruleMetric string, values map[string]float64, shadowed map[str
 	return keys
 }
 
-// keySuffix returns " (suffix)" for a key like "metric:suffix", or "" if no colon.
 func keySuffix(key string) string {
 	i := strings.Index(key, ":")
 	if i < 0 {
@@ -102,9 +96,7 @@ func keySuffix(key string) string {
 	return " (" + key[i+1:] + ")"
 }
 
-// Evaluate returns alerts newly firing this tick and firing alerts that have
-// cleared; already-firing alerts are not re-returned until they resolve and
-// re-fire.
+// Evaluate returns the alerts that fired and resolved this tick.
 func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -113,23 +105,22 @@ func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 		for _, key := range keys {
 			v := values[key]
 
-			// Threshold alert: evaluate unless this is a delta-only rule.
+			// Skipped for delta-only rules.
 			if rule.Threshold != 0 || rule.DeltaThreshold == 0 {
 				triggered := (rule.Above && v > rule.Threshold) || (!rule.Above && v < rule.Threshold)
 				if triggered {
 					if _, alreadyFiring := e.firing[key]; !alreadyFiring {
 						e.sustains[key]++
-						if rule.SustainedTicks > 0 && e.sustains[key] < rule.SustainedTicks {
-							continue
+						if e.sustains[key] >= rule.SustainedTicks {
+							msg := rule.Message
+							if key != rule.Metric {
+								msg += keySuffix(key)
+							}
+							s := State{Name: key, Message: msg, FiredAt: time.Now()}
+							e.firing[key] = s
+							fired = append(fired, s)
+							delete(e.sustains, key)
 						}
-						msg := rule.Message
-						if key != rule.Metric {
-							msg += keySuffix(key)
-						}
-						s := State{Name: key, Message: msg, FiredAt: time.Now()}
-						e.firing[key] = s
-						fired = append(fired, s)
-						delete(e.sustains, key)
 					}
 				} else {
 					delete(e.sustains, key)
@@ -140,8 +131,6 @@ func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 				}
 			}
 
-			// Delta alert: fires on a spike, resolves when the delta drops
-			// below threshold.
 			if rule.DeltaThreshold > 0 {
 				dk := deltaKey(key)
 				if prev, hasPrev := e.prev[key]; hasPrev {
@@ -166,7 +155,6 @@ func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 		}
 	}
 
-	// Store current values for next tick's delta calculation.
 	for k, v := range values {
 		e.prev[k] = v
 	}

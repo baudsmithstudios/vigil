@@ -26,7 +26,6 @@ type DB struct {
 	sql *sql.DB
 }
 
-// Open creates the SQLite database if absent and applies the schema.
 func Open(path string) (*DB, error) {
 	conn, err := sql.Open("sqlite", path+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
@@ -43,7 +42,6 @@ func Open(path string) (*DB, error) {
 			return nil, fmt.Errorf("migrate alerts: %w", err)
 		}
 	}
-	// Restrict database file to owner-only access.
 	if err := os.Chmod(path, 0600); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("chmod database: %w", err)
@@ -76,7 +74,6 @@ func (d *DB) WriteReadings(readings []Reading) error {
 	return tx.Commit()
 }
 
-// QueryRecent returns up to limit readings for the given metric, newest first.
 func (d *DB) QueryRecent(metric string, limit int) ([]Reading, error) {
 	rows, err := d.sql.Query(
 		`SELECT metric, value, timestamp FROM metrics
@@ -130,7 +127,6 @@ func (d *DB) ResolveAlert(name string) error {
 	return err
 }
 
-// DismissAlert records a manual clear (user-initiated, distinct from auto-resolve).
 func (d *DB) DismissAlert(name string) error {
 	_, err := d.sql.Exec(
 		`UPDATE alerts SET dismissed_at = ? WHERE name = ?`,
@@ -139,7 +135,6 @@ func (d *DB) DismissAlert(name string) error {
 	return err
 }
 
-// ActiveAlerts returns alerts that are neither resolved nor dismissed.
 func (d *DB) ActiveAlerts() ([]AlertRecord, error) {
 	rows, err := d.sql.Query(
 		`SELECT name, message, fired_at FROM alerts

@@ -22,7 +22,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Init flow styles, set by initStyles().
 var (
 	initSectionStyle lipgloss.Style
 	initDimStyle     lipgloss.Style
@@ -53,7 +52,6 @@ type initConfig struct {
 	portChecks     []config.PortCheck
 }
 
-// prompt returns user input, or defaultVal on empty input.
 func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	fmt.Printf("%s [%s] %s: ", label, defaultVal, initDimStyle.Render("(enter to accept)"))
 	if scanner.Scan() {
@@ -64,7 +62,6 @@ func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	return defaultVal
 }
 
-// promptThreshold returns the parsed value, or defaultVal on empty or invalid input.
 func promptThreshold(scanner *bufio.Scanner, label string, defaultVal float64) float64 {
 	fmt.Printf("%s alert threshold %% [%.0f]: ", label, defaultVal)
 	if scanner.Scan() {
@@ -78,8 +75,7 @@ func promptThreshold(scanner *bufio.Scanner, label string, defaultVal float64) f
 	return defaultVal
 }
 
-// parseToggleInput converts space-separated 1-based numbers to 0-based indices.
-// Out-of-range tokens are ignored.
+// parseToggleInput maps 1-based menu numbers to 0-based indices.
 func parseToggleInput(input string, count int) map[int]struct{} {
 	toggled := make(map[int]struct{})
 	for _, tok := range strings.Fields(input) {
@@ -148,7 +144,6 @@ func promptNotifications(scanner *bufio.Scanner) (discord, webhook, ntfyTopic, n
 	return
 }
 
-// promptHTTPCheck returns ok=false if name is empty or URL is invalid.
 func promptHTTPCheck(scanner *bufio.Scanner) (config.HTTPCheck, bool) {
 	var check config.HTTPCheck
 	fmt.Print("  Check name: ")
@@ -180,7 +175,6 @@ func promptHTTPCheck(scanner *bufio.Scanner) (config.HTTPCheck, bool) {
 	return check, true
 }
 
-// promptPortCheck returns ok=false if name is empty or port is out of range.
 func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	var check config.PortCheck
 	fmt.Print("  Check name: ")
@@ -194,22 +188,20 @@ func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	if scanner.Scan() {
 		check.Host = strings.TrimSpace(scanner.Text())
 	}
+	if check.Host == "" {
+		return check, false
+	}
 	fmt.Print("  Port: ")
 	if scanner.Scan() {
-		if v := strings.TrimSpace(scanner.Text()); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				if n < 1 || n > 65535 {
-					fmt.Println("  warning: port must be 1-65535")
-					return check, false
-				}
-				check.Port = n
-			}
-		}
+		check.Port, _ = strconv.Atoi(strings.TrimSpace(scanner.Text()))
+	}
+	if check.Port < 1 || check.Port > 65535 {
+		fmt.Println("  warning: port must be 1-65535")
+		return check, false
 	}
 	return check, true
 }
 
-// maskSecrets redacts notification secrets so the TOML preview is safe to print.
 func maskSecrets(toml string) string {
 	var out strings.Builder
 	for _, line := range strings.Split(toml, "\n") {
@@ -311,15 +303,13 @@ func buildConfigTOML(cfg initConfig) string {
 	return b.String()
 }
 
-// mountDiscoverer is injected so tests can skip mount discovery by passing nil.
 type mountDiscoverer func() []discoveredMount
 
-// initEnv holds detected host environment. Injected for testability.
 type initEnv struct {
-	dockerSocket string   // non-empty if Docker socket found
-	thermalZones []string // thermal zone temp file paths
-	inDocker     bool     // true if running inside a container
-	sdDevices    []string // SD/MMC whole-device names (e.g. ["mmcblk0"])
+	dockerSocket string
+	thermalZones []string
+	inDocker     bool
+	sdDevices    []string // whole devices, e.g. mmcblk0
 }
 
 const (
@@ -364,7 +354,6 @@ func runInitCmd(args []string) {
 	}
 }
 
-// runInit drives the interactive flow, reading from r.
 func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initEnv) error {
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("%s already exists — delete it or use a different path with -config", configPath)
@@ -378,7 +367,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 
 	var cfg initConfig
 
-	// --- Database path ---
 	defaultDB := "./vigil.db"
 	if env.inDocker {
 		defaultDB = "/data/vigil.db"
@@ -392,7 +380,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		}
 	}
 
-	// --- Mount selection ---
 	var mounts []discoveredMount
 	if discover != nil {
 		mounts = discover()
@@ -419,7 +406,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		fmt.Println("\nNo non-root mounts detected — skipping mount selection.")
 	}
 
-	// --- Alert thresholds ---
 	fmt.Println("\n" + initSectionStyle.Render("Alert thresholds") + initDimStyle.Render(" (press enter to accept default)") + ":")
 	cpuThresh := promptThreshold(scanner, "CPU", 85.0)
 	memThresh := promptThreshold(scanner, "Memory", 90.0)
@@ -440,9 +426,8 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 			Message: "Swap usage above 10%"},
 	}
 
-	// SD/MMC cards have spiky tail latency by design — a single 50ms threshold
-	// would be noisy on the root SD while the external /data drive needs it tight.
-	// Per-device rules shadow the generic disk_latency_ms rule for these names.
+	// SD cards often spike past 50ms under normal load, so each gets a higher
+	// threshold that overrides the generic rule.
 	for _, dev := range env.sdDevices {
 		cfg.alerts = append(cfg.alerts, config.Alert{
 			Metric: metric.PrefixDiskLatency + dev, Threshold: 200.0, Above: true, SustainedTicks: 5,
@@ -469,7 +454,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		})
 	}
 
-	// --- Optional section menu ---
 	type sectionKey int
 	const (
 		secDocker sectionKey = iota
@@ -549,7 +533,6 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 		cfg.retention = prompt(scanner, "Data retention", "12h")
 	}
 
-	// --- Preview and confirm ---
 	tomlOutput := buildConfigTOML(cfg)
 	divider := initDimStyle.Render("───")
 	fmt.Println("\n" + divider + " " + initSectionStyle.Render("Generated config.toml") + " " + divider)

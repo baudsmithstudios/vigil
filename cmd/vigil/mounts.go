@@ -153,7 +153,6 @@ func (m pickerModel) View() string {
 	var sb strings.Builder
 	sb.WriteString("Select mounts to watch (space=toggle, enter=confirm, q=quit):\n\n")
 
-	// Find max path width for right-aligning the description columns.
 	maxPath := 0
 	for _, mt := range m.mounts {
 		if len(mt.Path) > maxPath {

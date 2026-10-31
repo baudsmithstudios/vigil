@@ -27,8 +27,7 @@ func newSDErrorCollector() *sdErrorCollector {
 	}
 }
 
-// collect returns per-host deltas from MMC debugfs error counters.
-// This is best-effort and may be unavailable on hardened deployments.
+// debugfs isn't always readable, so these counters can be missing.
 func (c *sdErrorCollector) collect() []SDErrorSnapshot {
 	paths, err := c.glob(mmcErrStatsGlob)
 	if err != nil {

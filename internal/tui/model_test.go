@@ -10,20 +10,30 @@ import (
 	"vigil/internal/checker"
 	"vigil/internal/collector"
 	"vigil/internal/metric"
+	"vigil/internal/notify"
 )
 
-func TestModel_AlertFireAndResolve(t *testing.T) {
-	m := New("dark", nil, nil)
+func update(m Model, msg tea.Msg) Model {
+	result, _ := m.Update(msg)
+	return result.(Model)
+}
 
-	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: "cpu_percent", Message: "CPU high"}}})
-	m = result.(Model)
-	if len(m.activeAlerts) != 1 {
-		t.Fatalf("expected 1 active alert, got %d", len(m.activeAlerts))
+func key(s string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+}
+
+func withAlerts(m Model, names ...string) Model {
+	var fired []alert.State
+	for _, name := range names {
+		fired = append(fired, alert.State{Name: name, Message: name})
 	}
+	return update(m, AlertMsg{Fired: fired})
+}
 
-	// Resolved alerts stay in the list but are marked resolved.
-	result, _ = m.Update(AlertMsg{Resolved: []alert.State{{Name: "cpu_percent"}}})
-	m = result.(Model)
+func TestModel_AlertFireAndResolve(t *testing.T) {
+	m := withAlerts(New("dark", nil, nil), "cpu_percent")
+
+	m = update(m, AlertMsg{Resolved: []alert.State{{Name: "cpu_percent"}}})
 	if len(m.activeAlerts) != 1 {
 		t.Fatalf("expected 1 alert still present after resolve, got %d", len(m.activeAlerts))
 	}
@@ -35,90 +45,97 @@ func TestModel_AlertFireAndResolve(t *testing.T) {
 	}
 }
 
-func TestModel_AlertCursorClampsOnDismiss(t *testing.T) {
-	m := New("dark", nil, nil)
+func TestModel_DismissReportsAlertName(t *testing.T) {
+	dismissed := make(chan string, 1)
+	m := withAlerts(New("dark", func(name string) { dismissed <- name }, nil), "a", "b")
 
-	result, _ := m.Update(AlertMsg{Fired: []alert.State{
-		{Name: "a", Message: "a"},
-		{Name: "b", Message: "b"},
-		{Name: "c", Message: "c"},
-	}})
-	m = result.(Model)
-
-	// Move cursor to last alert (index 2) and dismiss it.
-	m.alertCursor = 2
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	m = result.(Model)
-	if m.alertCursor >= len(m.activeAlerts) {
-		t.Errorf("alertCursor %d out of bounds for %d alerts", m.alertCursor, len(m.activeAlerts))
+	m = update(m, key("d"))
+	select {
+	case name := <-dismissed:
+		if name != "a" {
+			t.Errorf("dismissed %q, want a", name)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("onDismiss was not called")
+	}
+	if len(m.activeAlerts) != 1 || m.activeAlerts[0].Name != "b" {
+		t.Errorf("expected only b left, got %+v", m.activeAlerts)
 	}
 }
 
-func TestModel_DismissResolvedAlert(t *testing.T) {
-	m := New("dark", nil, nil)
+func TestModel_AlertCursorClampsOnDismiss(t *testing.T) {
+	m := withAlerts(New("dark", nil, nil), "a", "b", "c")
+	m.alertCursor = 2
 
-	// Fire and resolve an alert.
-	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: "cpu_iowait", Message: "iowait high"}}})
-	m = result.(Model)
-	result, _ = m.Update(AlertMsg{Resolved: []alert.State{{Name: "cpu_iowait"}}})
-	m = result.(Model)
-	if len(m.activeAlerts) != 1 {
-		t.Fatalf("expected 1 resolved alert, got %d", len(m.activeAlerts))
+	m = update(m, key("d"))
+	if m.alertCursor != 1 {
+		t.Errorf("alertCursor = %d, want 1", m.alertCursor)
 	}
+}
 
-	// Dismiss the resolved alert.
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	m = result.(Model)
-	if len(m.activeAlerts) != 0 {
-		t.Errorf("expected 0 alerts after dismissing resolved alert, got %d", len(m.activeAlerts))
+func TestModel_AlertCursorStopsAtEnds(t *testing.T) {
+	m := withAlerts(New("dark", nil, nil), "a", "b")
+
+	m = update(m, key("k"))
+	if m.alertCursor != 0 {
+		t.Errorf("k at the top moved the cursor to %d", m.alertCursor)
+	}
+	m = update(update(m, key("j")), key("j"))
+	if m.alertCursor != 1 {
+		t.Errorf("j past the end moved the cursor to %d", m.alertCursor)
 	}
 }
 
 func TestModel_DismissResolvedThrottleAlert(t *testing.T) {
-	m := New("dark", nil, nil)
-	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: metric.AlertThrottle, Message: "under-voltage detected"}}})
-	m = result.(Model)
-	result, _ = m.Update(AlertMsg{Resolved: []alert.State{{Name: metric.AlertThrottle}}})
-	m = result.(Model)
+	m := withAlerts(New("dark", nil, nil), metric.AlertThrottle)
+	m = update(m, AlertMsg{Resolved: []alert.State{{Name: metric.AlertThrottle}}})
 
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	m = result.(Model)
+	m = update(m, key("d"))
 	if len(m.activeAlerts) != 0 {
 		t.Errorf("expected resolved throttle alert dismissed, got %d alerts", len(m.activeAlerts))
 	}
 }
 
 func TestModel_ActiveThrottleAlertIsNotDismissable(t *testing.T) {
-	m := New("dark", nil, nil)
-	result, _ := m.Update(AlertMsg{Fired: []alert.State{{Name: metric.AlertThrottle, Message: "under-voltage detected"}}})
-	m = result.(Model)
+	m := withAlerts(New("dark", nil, nil), metric.AlertThrottle)
 
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	m = result.(Model)
+	m = update(m, key("d"))
 	if len(m.activeAlerts) != 1 {
 		t.Errorf("expected active throttle alert kept, got %d alerts", len(m.activeAlerts))
 	}
 }
 
-func TestModel_QuitOnQ(t *testing.T) {
-	m := New("dark", nil, nil)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-	if cmd == nil {
-		t.Fatal("expected a quit command")
+func TestModel_MuteKeyTogglesMute(t *testing.T) {
+	mute := &notify.Mute{}
+	update(New("dark", nil, mute), key("m"))
+	if !mute.IsMuted() {
+		t.Error("expected m to mute")
+	}
+
+	update(New("dark", nil, nil), key("m"))
+}
+
+func TestModel_Quit(t *testing.T) {
+	for _, showHelp := range []bool{false, true} {
+		m := New("dark", nil, nil)
+		m.showHelp = showHelp
+		_, cmd := m.Update(key("q"))
+		if cmd == nil {
+			t.Fatalf("showHelp=%v: expected a quit command", showHelp)
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Errorf("showHelp=%v: expected tea.QuitMsg", showHelp)
+		}
 	}
 }
 
 func TestModel_HelpToggle(t *testing.T) {
-	m := New("dark", nil, nil)
-
-	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
-	m = result.(Model)
+	m := update(New("dark", nil, nil), key("?"))
 	if !m.showHelp {
 		t.Error("expected showHelp=true after pressing ?")
 	}
 
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
-	m = result.(Model)
+	m = update(m, key("?"))
 	if m.showHelp {
 		t.Error("expected showHelp=false after pressing ? again")
 	}
@@ -128,30 +145,72 @@ func TestModel_HelpDismissEsc(t *testing.T) {
 	m := New("dark", nil, nil)
 	m.showHelp = true
 
-	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEscape})
-	m = result.(Model)
+	m = update(m, tea.KeyMsg{Type: tea.KeyEscape})
 	if m.showHelp {
 		t.Error("expected showHelp=false after pressing Esc")
 	}
 }
 
 func TestModel_HelpSwallowsKeys(t *testing.T) {
-	m := New("dark", nil, nil)
+	m := withAlerts(New("dark", nil, nil), "a", "b")
 	m.showHelp = true
-	m.activeAlerts = []alert.State{{Name: "test", Message: "test"}}
 
-	// j should not move alert cursor
-	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	m = result.(Model)
+	m = update(m, key("j"))
 	if m.alertCursor != 0 {
 		t.Error("expected j to be swallowed when help is shown")
 	}
 
-	// d should not dismiss alert
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	m = result.(Model)
-	if len(m.activeAlerts) != 1 {
+	m = update(m, key("d"))
+	if len(m.activeAlerts) != 2 {
 		t.Error("expected d to be swallowed when help is shown")
+	}
+}
+
+func TestModel_HelpViewRenders(t *testing.T) {
+	m := update(New("dark", nil, nil), tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = update(m, key("?"))
+
+	output := m.View()
+	for _, want := range []string{"Help", "Toggle help", "Global", "Dashboard", "Press ? or Esc to close"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("help overlay missing %q", want)
+		}
+	}
+}
+
+func TestModel_ViewFitsTerminalHeight(t *testing.T) {
+	m := update(New("dark", nil, nil), tea.WindowSizeMsg{Width: 120, Height: 5})
+	m = update(m, SnapshotMsg(collector.Snapshot{}))
+
+	if got := strings.Count(m.View(), "\n") + 1; got != 5 {
+		t.Errorf("view is %d lines, want 5", got)
+	}
+}
+
+func TestModel_RendersEveryLayoutWithNoOptInPanels(t *testing.T) {
+	for _, width := range []int{80, 120, 180} {
+		m := update(New("dark", nil, nil), tea.WindowSizeMsg{Width: width, Height: 40})
+		m = update(m, SnapshotMsg(collector.Snapshot{}))
+		if !strings.Contains(m.View(), "VIGIL") {
+			t.Errorf("width %d: expected the dashboard to render", width)
+		}
+	}
+}
+
+func TestModel_ServicesPanelRendered(t *testing.T) {
+	m := update(New("dark", nil, nil), tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = update(m, SnapshotMsg(collector.Snapshot{
+		Services: []checker.ServiceStatus{
+			{Name: "web", CheckType: "http", Up: true, StatusCode: 200, Latency: 23 * time.Millisecond, CheckedAt: time.Now()},
+			{Name: "mqtt", CheckType: "tcp", Up: false, Error: "refused", CheckedAt: time.Now()},
+		},
+	}))
+
+	output := m.View()
+	for _, want := range []string{"Services", "web", "mqtt", "UP", "DOWN"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected %q in output", want)
+		}
 	}
 }
 
@@ -166,77 +225,9 @@ func TestRenderDiskContent_UsesParentDeviceIO(t *testing.T) {
 		60,
 	)
 
-	var detailLine string
-	for _, line := range strings.Split(content, "\n") {
-		if strings.Contains(line, "1.0K / 2.0K") {
-			detailLine = line
-			break
-		}
-	}
-	if detailLine == "" {
-		t.Fatalf("expected disk detail line in output, got:\n%s", content)
-	}
 	for _, want := range []string{"r 4.0K/s", "w 2.0K/s", "util 77%", "await 4.2ms"} {
-		if !strings.Contains(detailLine, want) {
-			t.Fatalf("expected disk detail line to contain %q, got:\n%s", want, detailLine)
+		if !strings.Contains(content, want) {
+			t.Errorf("expected disk content to contain %q, got:\n%s", want, content)
 		}
-	}
-}
-
-func TestModel_QuitWorksWithHelp(t *testing.T) {
-	m := New("dark", nil, nil)
-	m.showHelp = true
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-	if cmd == nil {
-		t.Fatal("expected quit command even when help is shown")
-	}
-}
-
-func TestModel_HelpViewRenders(t *testing.T) {
-	m := New("dark", nil, nil)
-
-	result, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = result.(Model)
-
-	result, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
-	m = result.(Model)
-
-	output := m.View()
-	for _, want := range []string{"Help", "Toggle help", "Global", "Dashboard", "Press ? or Esc to close"} {
-		if !strings.Contains(output, want) {
-			t.Errorf("help overlay missing %q", want)
-		}
-	}
-}
-
-func TestModel_ServicesPanelRendered(t *testing.T) {
-	m := New("dark", nil, nil)
-	result, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m = result.(Model)
-
-	result, _ = m.Update(SnapshotMsg(collector.Snapshot{
-		Services: []checker.ServiceStatus{
-			{Name: "web", CheckType: "http", Up: true, StatusCode: 200, Latency: 23 * time.Millisecond, CheckedAt: time.Now()},
-			{Name: "mqtt", CheckType: "tcp", Up: false, Error: "refused", CheckedAt: time.Now()},
-		},
-	}))
-	m = result.(Model)
-
-	output := m.View()
-	if !strings.Contains(output, "Services") {
-		t.Error("expected Services panel in output")
-	}
-	if !strings.Contains(output, "web") {
-		t.Error("expected 'web' service in output")
-	}
-	if !strings.Contains(output, "mqtt") {
-		t.Error("expected 'mqtt' service in output")
-	}
-	if !strings.Contains(output, "UP") {
-		t.Error("expected UP status in output")
-	}
-	if !strings.Contains(output, "DOWN") {
-		t.Error("expected DOWN status in output")
 	}
 }

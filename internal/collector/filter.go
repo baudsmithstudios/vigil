@@ -2,9 +2,7 @@ package collector
 
 import "strings"
 
-// virtualFS lists filesystem types that represent kernel/container internals
-// rather than real storage. Mirrors the exclusion list used by Prometheus
-// node_exporter.
+// virtualFS mirrors Prometheus node_exporter's exclusion list.
 var virtualFS = map[string]bool{
 	"autofs": true, "bpf": true, "cgroup": true, "cgroup2": true,
 	"configfs": true, "debugfs": true, "devpts": true, "devtmpfs": true,
@@ -13,18 +11,14 @@ var virtualFS = map[string]bool{
 	"squashfs": true, "sysfs": true, "tmpfs": true, "tracefs": true,
 }
 
-// virtualIfacePrefixes lists network interface name prefixes that indicate
-// virtual/container interfaces rather than physical hardware.
 var virtualIfacePrefixes = []string{
 	"docker", "veth", "br-", "virbr", "dummy", "tunl",
 }
 
-// ShouldCollectFS excludes kernel/container virtual filesystems.
 func ShouldCollectFS(fstype string) bool {
 	return !virtualFS[strings.ToLower(fstype)]
 }
 
-// shouldCollectInterface excludes loopback and known virtual interface prefixes.
 func shouldCollectInterface(name string) bool {
 	if name == "lo" {
 		return false

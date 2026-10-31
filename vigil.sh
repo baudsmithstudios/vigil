@@ -3,7 +3,6 @@ set -e
 
 IMAGE="vigil:latest"
 
-# Verify the image is loaded.
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "Error: Docker image '$IMAGE' not found." >&2
     echo "Load it first:  docker load < vigil.tar" >&2

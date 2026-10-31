@@ -27,7 +27,6 @@ type mountState struct {
 	flapFiring bool
 }
 
-// MountAlertHandler tracks mount presence with debounce and flap detection.
 type MountAlertHandler struct {
 	mu            sync.Mutex
 	states        map[string]*mountState
@@ -36,7 +35,6 @@ type MountAlertHandler struct {
 	flapWindow    time.Duration
 }
 
-// NewMountHandler: 3-tick debounce, 3 flaps in 5 minutes for unstable.
 func NewMountHandler() *MountAlertHandler {
 	return &MountAlertHandler{
 		states:        make(map[string]*mountState),
@@ -46,7 +44,6 @@ func NewMountHandler() *MountAlertHandler {
 	}
 }
 
-// Restore reloads previously-firing alerts so they survive restarts.
 func (h *MountAlertHandler) Restore(states []State) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -103,14 +100,12 @@ func (h *MountAlertHandler) Evaluate(mounts []collector.MountStatus) (fired, res
 		case mountOK:
 			if !m.Mounted {
 				st.status = mountDebouncing
-				// debounceTicks counts the transition tick itself, so we need
-				// debounceTicks-1 additional ticks before firing.
+				// debounceTicks counts this tick.
 				st.debounceLeft = h.debounceTicks - 1
 			}
 
 		case mountDebouncing:
 			if m.Mounted {
-				// Mount reappeared during debounce — cancel and count as a flap.
 				st.status = mountOK
 				st.debounceLeft = 0
 				f := h.incrementFlap(st, m)
@@ -132,7 +127,6 @@ func (h *MountAlertHandler) Evaluate(mounts []collector.MountStatus) (fired, res
 
 		case mountFiring:
 			if m.Mounted {
-				// Mount came back — resolve the missing alert and count as a flap.
 				resolved = append(resolved, State{
 					Name:    metric.PrefixMountMissing + path,
 					Message: fmt.Sprintf("mount %s is present again", displayName(m)),
@@ -169,8 +163,7 @@ func (h *MountAlertHandler) getOrCreate(path string) *mountState {
 	return st
 }
 
-// incrementFlap records a reappearance and returns an unstable alert when the
-// flap threshold is crossed. Caller must hold h.mu.
+// Caller must hold h.mu.
 func (h *MountAlertHandler) incrementFlap(st *mountState, m collector.MountStatus) *State {
 	now := time.Now()
 	if st.flapStart.IsZero() {
@@ -189,7 +182,6 @@ func (h *MountAlertHandler) incrementFlap(st *mountState, m collector.MountStatu
 	return nil
 }
 
-// displayName falls back to path when no label is configured.
 func displayName(m collector.MountStatus) string {
 	if m.Label != "" {
 		return m.Label

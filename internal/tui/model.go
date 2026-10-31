@@ -19,10 +19,8 @@ type AlertMsg struct {
 	Resolved []alert.State
 }
 
-// DismissFunc is called when the user presses 'd' on a selected alert.
 type DismissFunc func(name string)
 
-// Model is the bubbletea root for the dashboard.
 type Model struct {
 	width    int
 	height   int
@@ -31,7 +29,7 @@ type Model struct {
 	lastSnap     collector.Snapshot
 	hasSnap      bool
 	activeAlerts []alert.State
-	alertCursor  int // selected alert index for dismissal
+	alertCursor  int
 	onDismiss    DismissFunc
 	mute         *notify.Mute // nil if no notifier configured
 }
@@ -44,7 +42,6 @@ func New(themeSetting string, onDismiss DismissFunc, mute *notify.Mute) Model {
 	}
 }
 
-// SetAlerts seeds the active alert list (e.g. restored from DB on startup).
 func (m *Model) SetAlerts(alerts []alert.State) {
 	m.activeAlerts = alerts
 }
@@ -142,7 +139,6 @@ func (m Model) View() string {
 	muted := m.mute != nil && m.mute.IsMuted()
 	dashboard := renderDashboard(m.lastSnap, m.activeAlerts, m.alertCursor, muted, m.width)
 
-	// Truncate dashboard to fit terminal height, preserving header at top.
 	if m.height > 0 {
 		lines := strings.Split(dashboard, "\n")
 		if len(lines) > m.height {

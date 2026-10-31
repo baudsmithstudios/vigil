@@ -11,32 +11,28 @@ import (
 
 const throttlePath = "/sys/devices/platform/soc/soc:firmware/get_throttled"
 
-// ThrottleSnapshot is the decoded Pi throttle/voltage bitmask.
 type ThrottleSnapshot struct {
 	Raw                    uint32
-	UnderVoltage           bool // bit 0
-	FreqCapped             bool // bit 1
-	Throttled              bool // bit 2
-	SoftTempLimit          bool // bit 3
-	UnderVoltageSinceBoot  bool // bit 16
-	FreqCappedSinceBoot    bool // bit 17
-	ThrottledSinceBoot     bool // bit 18
-	SoftTempLimitSinceBoot bool // bit 19
-	Available              bool // true if sysfs file was read successfully
+	UnderVoltage           bool
+	FreqCapped             bool
+	Throttled              bool
+	SoftTempLimit          bool
+	UnderVoltageSinceBoot  bool
+	FreqCappedSinceBoot    bool
+	ThrottledSinceBoot     bool
+	SoftTempLimitSinceBoot bool
+	Available              bool
 }
 
-// ActiveNow returns true if any active throttle flag (bits 0-3) is set.
 func (t ThrottleSnapshot) ActiveNow() bool {
 	return t.UnderVoltage || t.FreqCapped || t.Throttled || t.SoftTempLimit
 }
 
-// SinceBoot returns true if any historical flag (bits 16-19) is set.
 func (t ThrottleSnapshot) SinceBoot() bool {
 	return t.UnderVoltageSinceBoot || t.FreqCappedSinceBoot ||
 		t.ThrottledSinceBoot || t.SoftTempLimitSinceBoot
 }
 
-// Status returns a three-state string: "THROTTLED", "WARN", or "OK".
 func (t ThrottleSnapshot) Status() string {
 	if t.ActiveNow() {
 		return "THROTTLED"
@@ -47,7 +43,6 @@ func (t ThrottleSnapshot) Status() string {
 	return "OK"
 }
 
-// ActiveMessage joins the active flag names into a human-readable summary.
 func (t ThrottleSnapshot) ActiveMessage() string {
 	var parts []string
 	if t.UnderVoltage {
@@ -85,9 +80,7 @@ func decodeThrottleBitmask(raw uint32) ThrottleSnapshot {
 
 var throttleWarnOnce sync.Once
 
-// readThrottleValue tries the sysfs file first, then falls back to vcgencmd.
 func readThrottleValue() (uint32, bool) {
-	// Try sysfs first.
 	data, err := os.ReadFile(throttlePath)
 	if err == nil {
 		s := strings.TrimSpace(string(data))
@@ -106,7 +99,6 @@ func readThrottleValue() (uint32, bool) {
 		})
 	}
 
-	// Fall back to vcgencmd.
 	out, err := exec.Command("vcgencmd", "get_throttled").Output()
 	if err != nil {
 		throttleWarnOnce.Do(func() {

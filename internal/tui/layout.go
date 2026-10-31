@@ -6,16 +6,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// panelSpec is one cell in the row layout; if stack is set, the cell renders
-// those sub-panels stacked vertically instead of a single panel.
 type panelSpec struct {
 	name   string
 	title  string
-	weight int         // proportional width: 3=wide, 2=medium, 1=compact
-	stack  []panelSpec // when set, renders stacked panels in this column
+	weight int
+	stack  []panelSpec // when set, these render stacked in one column
 }
 
-// hasContent is true if this cell — or, for stacks, any sub-panel — has content.
 func (p panelSpec) hasContent(contents map[string]string) bool {
 	if len(p.stack) > 0 {
 		for _, sp := range p.stack {
@@ -28,7 +25,6 @@ func (p panelSpec) hasContent(contents map[string]string) bool {
 	return contents[p.name] != ""
 }
 
-// selectLayout chooses row grouping by terminal width; panel order is fixed.
 func selectLayout(width int) [][]panelSpec {
 	cpu := panelSpec{name: "cpu", title: "CPU", weight: 3}
 	mem := panelSpec{name: "mem", title: "Memory", weight: 3}
@@ -67,9 +63,8 @@ func selectLayout(width int) [][]panelSpec {
 	}
 }
 
-// distributeWidths allocates terminal width among panels in a row
-// proportional to their weights, after subtracting border+padding overhead
-// (4 chars per panel: 2 border + 2 padding).
+// distributeWidths splits the width by weight, after reserving 4 chars per panel
+// for border and padding.
 func distributeWidths(termWidth int, weights []int) []int {
 	n := len(weights)
 	available := termWidth - (n * 4)
@@ -88,14 +83,11 @@ func distributeWidths(termWidth int, weights []int) []int {
 		widths[i] = available * w / totalWeight
 		assigned += widths[i]
 	}
-	// Distribute remainder to first panel.
 	widths[0] += available - assigned
 
 	return widths
 }
 
-// renderRow distributes width by weight after filtering out empty panels.
-// Stacked cells render their sub-panels vertically inside one column.
 func renderRow(row []panelSpec, contents map[string]string, titles map[string]string, termWidth int) string {
 	var active []panelSpec
 	for _, p := range row {
@@ -113,10 +105,9 @@ func renderRow(row []panelSpec, contents map[string]string, titles map[string]st
 	}
 	widths := distributeWidths(termWidth, weights)
 
-	// Render each cell and track its visual height.
 	type cell struct {
 		rendered string
-		height   int // visual line count
+		height   int
 		isStack  bool
 	}
 	cells := make([]cell, len(active))
@@ -139,7 +130,7 @@ func renderRow(row []panelSpec, contents map[string]string, titles map[string]st
 			cells[i] = cell{rendered: r, height: h, isStack: true}
 		} else {
 			c := contents[p.name]
-			// Panel height = content split parts + 2 (top + bottom border).
+			// Content lines plus top and bottom border.
 			contentParts := strings.Count(c, "\n") + 1
 			h := contentParts + 2
 			cells[i] = cell{height: h}
@@ -149,14 +140,12 @@ func renderRow(row []panelSpec, contents map[string]string, titles map[string]st
 		}
 	}
 
-	// Render single panels with content padded to match the tallest cell.
 	panels := make([]string, len(active))
 	for i, p := range active {
 		if cells[i].isStack {
 			panels[i] = cells[i].rendered
 		} else {
 			c := contents[p.name]
-			// Pad content so the rendered panel's total height matches maxHeight.
 			targetParts := maxHeight - 2
 			currentParts := strings.Count(c, "\n") + 1
 			if targetParts > currentParts {
@@ -173,8 +162,8 @@ func renderRow(row []panelSpec, contents map[string]string, titles map[string]st
 	return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
 }
 
-// renderPanel renders content inside a bordered box with the title embedded
-// in the top border line: ╭─ Title ──────────╮
+// renderPanel embeds the title in the top border: ╭─ Title ──────────╮
+// width excludes the two side borders.
 func renderPanel(title, content string, width int) string {
 	border := lipgloss.RoundedBorder()
 	borderFg := panelStyle.GetBorderTopForeground()
@@ -182,8 +171,6 @@ func renderPanel(title, content string, width int) string {
 	styledTitle := " " + sectionTitleStyle.Render(title) + " "
 	titleW := lipgloss.Width(styledTitle)
 
-	// Top border: ╭─ Title ─...─╮
-	// Inner width = width (content area), total = width + 2 (border chars)
 	topFill := width - titleW - 1 // -1 for the ╭ prefix dash
 	if topFill < 0 {
 		topFill = 0
@@ -194,15 +181,13 @@ func renderPanel(title, content string, width int) string {
 		lipgloss.NewStyle().Foreground(borderFg).Render(
 			strings.Repeat(border.Top, topFill)+border.TopRight)
 
-	// Content with side borders and padding.
 	side := lipgloss.NewStyle().Foreground(borderFg).Render(border.Left)
 	sideR := lipgloss.NewStyle().Foreground(borderFg).Render(border.Right)
-	pad := " "          // 1 char padding on each side
-	innerW := width - 2 // subtract padding
+	pad := " "
+	innerW := width - 2
 
 	var body strings.Builder
 	for _, line := range strings.Split(content, "\n") {
-		// Truncate or pad each line to fill the inner width.
 		lineW := lipgloss.Width(line)
 		if lineW > innerW {
 			line = lipgloss.NewStyle().MaxWidth(innerW).Render(line)
@@ -215,7 +200,6 @@ func renderPanel(title, content string, width int) string {
 		body.WriteString(side + pad + line + fill + pad + sideR + "\n")
 	}
 
-	// Bottom border: ╰─...─╯
 	bottom := lipgloss.NewStyle().Foreground(borderFg).Render(
 		border.BottomLeft + strings.Repeat(border.Bottom, width) + border.BottomRight)
 

@@ -11,7 +11,6 @@ import (
 const piThermalZone = "/sys/class/thermal/thermal_zone0/temp"
 
 func collectTemperature() []TempSnapshot {
-	// Try gopsutil first — works on many Linux systems.
 	sensors, err := host.SensorsTemperatures()
 	if err == nil && len(sensors) > 0 {
 		var out []TempSnapshot
@@ -28,7 +27,6 @@ func collectTemperature() []TempSnapshot {
 		}
 	}
 
-	// Fallback: read Pi's thermal_zone0 directly.
 	data, err := os.ReadFile(piThermalZone)
 	if err != nil {
 		return nil

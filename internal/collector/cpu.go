@@ -15,8 +15,7 @@ func newCPUCollector() *cpuCollector {
 	return &cpuCollector{}
 }
 
-// collect returns a CPUSnapshot. The first call primes the counters and returns
-// Ready=false. Subsequent calls return the actual utilisation and time breakdown.
+// The first call has no previous reading, so it returns Ready=false.
 func (c *cpuCollector) collect() CPUSnapshot {
 	// interval=0 means "delta since last call", which requires two calls.
 	percents, err := cpu.Percent(0, true)
@@ -24,7 +23,7 @@ func (c *cpuCollector) collect() CPUSnapshot {
 		log.Printf("cpu percent collection error: %v", err)
 	}
 
-	times, timesErr := cpu.Times(false) // aggregate (not per-core)
+	times, timesErr := cpu.Times(false) // aggregate
 	if timesErr != nil {
 		log.Printf("cpu times collection error: %v", timesErr)
 	}

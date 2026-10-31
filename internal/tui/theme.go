@@ -41,8 +41,6 @@ var LightTheme = Theme{
 	Critical:  "124",
 }
 
-// ResolveTheme returns the named theme; "auto" or empty queries the terminal
-// background and falls back to DarkTheme in non-terminal environments.
 func ResolveTheme(setting string) Theme {
 	switch setting {
 	case "light":

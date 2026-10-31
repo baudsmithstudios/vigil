@@ -17,8 +17,7 @@ func newDiskCollector() *diskCollector {
 	return &diskCollector{prev: make(map[string]disk.IOCountersStat)}
 }
 
-// collectSpace returns usage for all mounted partitions. In a container with
-// host /proc mounted, gopsutil enumerates real host partitions.
+// In a container with host /proc mounted, gopsutil enumerates real host partitions.
 func (d *diskCollector) collectSpace() []DiskSnapshot {
 	parts, err := disk.Partitions(false)
 	if err != nil {
@@ -47,7 +46,6 @@ func (d *diskCollector) collectSpace() []DiskSnapshot {
 	return out
 }
 
-// collectIO returns per-device I/O rates; zero on the first call (no prev sample).
 func (d *diskCollector) collectIO() []DiskIOSnapshot {
 	counters, err := disk.IOCounters()
 	if err != nil {
@@ -82,9 +80,7 @@ func normalizeDeviceName(device string) string {
 	return filepath.Base(device)
 }
 
-// applyDiskRates computes interval rates from cumulative disk counters.
-// Caller must pass elapsed > 0. Counter rollback is treated as unavailable
-// data for the interval.
+// Caller must pass elapsed > 0. If a counter goes backwards, that rate stays zero.
 func applyDiskRates(snap *DiskIOSnapshot, prev, curr disk.IOCountersStat, elapsed float64) {
 	if curr.ReadBytes >= prev.ReadBytes {
 		snap.ReadRate = float64(curr.ReadBytes-prev.ReadBytes) / elapsed
