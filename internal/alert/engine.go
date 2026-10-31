@@ -23,7 +23,7 @@ type Engine struct {
 	firing   map[string]State // by alert key: metric or metric:delta
 	prev     map[string]float64
 	sustains map[string]int      // consecutive ticks over threshold, by value key
-	shadowed map[string]struct{} // value keys owned by a specific rule
+	shadowed map[string]struct{} // value keys with their own rule
 }
 
 // A specific rule like "disk_latency_ms:mmcblk0" shadows the generic rule
@@ -96,7 +96,7 @@ func keySuffix(key string) string {
 	return " (" + key[i+1:] + ")"
 }
 
-// Evaluate returns alerts newly firing this tick and firing alerts that cleared.
+// Evaluate returns the alerts that fired and resolved this tick.
 func (e *Engine) Evaluate(values map[string]float64) (fired, resolved []State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

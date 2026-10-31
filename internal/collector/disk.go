@@ -80,7 +80,7 @@ func normalizeDeviceName(device string) string {
 	return filepath.Base(device)
 }
 
-// Caller must pass elapsed > 0. A counter rollback leaves that rate at zero.
+// Caller must pass elapsed > 0. If a counter goes backwards, that rate stays zero.
 func applyDiskRates(snap *DiskIOSnapshot, prev, curr disk.IOCountersStat, elapsed float64) {
 	if curr.ReadBytes >= prev.ReadBytes {
 		snap.ReadRate = float64(curr.ReadBytes-prev.ReadBytes) / elapsed

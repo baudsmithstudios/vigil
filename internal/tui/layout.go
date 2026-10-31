@@ -63,8 +63,8 @@ func selectLayout(width int) [][]panelSpec {
 	}
 }
 
-// distributeWidths splits the width by weight, after 4 chars per panel of border
-// and padding.
+// distributeWidths splits the width by weight, after reserving 4 chars per panel
+// for border and padding.
 func distributeWidths(termWidth int, weights []int) []int {
 	n := len(weights)
 	available := termWidth - (n * 4)

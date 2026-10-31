@@ -16,7 +16,7 @@ FROM alpine:3.21
 # architectures skip the install.
 RUN apk add --no-cache raspberrypi-utils 2>/dev/null || true
 
-# Some /sys reads may still need the container in a host group.
+# Some /sys reads may need the container added to a host group.
 RUN adduser -D -u 1000 vigil
 
 WORKDIR /app

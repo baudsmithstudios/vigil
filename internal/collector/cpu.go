@@ -15,7 +15,7 @@ func newCPUCollector() *cpuCollector {
 	return &cpuCollector{}
 }
 
-// The first call only primes the counters, so it returns Ready=false.
+// The first call has no previous reading, so it returns Ready=false.
 func (c *cpuCollector) collect() CPUSnapshot {
 	// interval=0 means "delta since last call", which requires two calls.
 	percents, err := cpu.Percent(0, true)

@@ -27,7 +27,7 @@ func newSDErrorCollector() *sdErrorCollector {
 	}
 }
 
-// collect is best-effort: debugfs may be unavailable on hardened deployments.
+// debugfs isn't always readable, so these counters can be missing.
 func (c *sdErrorCollector) collect() []SDErrorSnapshot {
 	paths, err := c.glob(mmcErrStatsGlob)
 	if err != nil {

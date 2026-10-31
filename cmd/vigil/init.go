@@ -426,8 +426,8 @@ func runInit(configPath string, r io.Reader, discover mountDiscoverer, env initE
 			Message: "Swap usage above 10%"},
 	}
 
-	// SD cards have spiky tail latency: 50ms would be noisy on the root SD while the
-	// external /data drive needs it tight, so each gets a rule shadowing the generic one.
+	// SD cards often spike past 50ms under normal load, so each gets a higher
+	// threshold that overrides the generic rule.
 	for _, dev := range env.sdDevices {
 		cfg.alerts = append(cfg.alerts, config.Alert{
 			Metric: metric.PrefixDiskLatency + dev, Threshold: 200.0, Above: true, SustainedTicks: 5,

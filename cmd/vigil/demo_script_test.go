@@ -13,12 +13,16 @@ import (
 	"vigil/internal/config"
 )
 
+<<<<<<< HEAD
 // Every tick after demoEndTick repeats the calm state.
+=======
+// Ticks after demoEndTick show only normal values.
+>>>>>>> origin/wip/demo-mode
 const demoEndTick = 60
 
 func TestDemoTimeline(t *testing.T) {
 	base := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
-	const lastTick = 90 // past demoEndTick: the calm tail must stay quiet
+	const lastTick = 90 // past demoEndTick, to check that nothing fires after it
 	snapshots := make(chan collector.Snapshot, lastTick+1)
 	for tick := 0; tick <= lastTick; tick++ {
 		snapshots <- demoSnapshot(tick, base.Add(time.Duration(tick)*demoTick))
@@ -53,7 +57,7 @@ func TestDemoTimeline(t *testing.T) {
 		{28, "service_down:mqtt"},
 		{30, "throttle"},
 	}
-	// mount_unstable isn't here: its 5-minute window outlasts the take, so the tape dismisses it.
+	// mount_unstable isn't here: its 5-minute window is longer than the recording, so the tape dismisses it.
 	wantResolved := []event{
 		{44, "mount_missing:/mnt/nas"},
 		{46, "cpu_percent"},

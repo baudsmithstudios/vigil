@@ -1,6 +1,6 @@
 package collector
 
-// Caller must pass elapsed > 0. A counter rollback leaves that rate at zero.
+// Caller must pass elapsed > 0. If a counter goes backwards, that rate stays zero.
 func applySwapRates(prevIn, prevOut, curIn, curOut uint64, elapsed float64) (inRate, outRate float64) {
 	if curIn >= prevIn {
 		inRate = float64(curIn-prevIn) / elapsed

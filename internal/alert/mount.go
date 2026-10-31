@@ -100,7 +100,7 @@ func (h *MountAlertHandler) Evaluate(mounts []collector.MountStatus) (fired, res
 		case mountOK:
 			if !m.Mounted {
 				st.status = mountDebouncing
-				// debounceTicks includes this transition tick.
+				// debounceTicks counts this tick.
 				st.debounceLeft = h.debounceTicks - 1
 			}
 
