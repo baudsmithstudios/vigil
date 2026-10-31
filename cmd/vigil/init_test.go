@@ -471,3 +471,11 @@ func TestBuildConfigTOML_MountChecks(t *testing.T) {
 		t.Error("expected second mount in output")
 	}
 }
+
+func TestPromptPortCheck_RejectsWhatConfigValidationWould(t *testing.T) {
+	for _, input := range []string{"ssh\n\n22\n", "ssh\nhost\n\n", "ssh\nhost\nabc\n", "ssh\nhost\n0\n", "ssh\nhost\n65536\n"} {
+		if check, ok := promptPortCheck(bufio.NewScanner(strings.NewReader(input))); ok {
+			t.Errorf("input %q: accepted %+v", input, check)
+		}
+	}
+}

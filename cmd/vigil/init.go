@@ -194,17 +194,16 @@ func promptPortCheck(scanner *bufio.Scanner) (config.PortCheck, bool) {
 	if scanner.Scan() {
 		check.Host = strings.TrimSpace(scanner.Text())
 	}
+	if check.Host == "" {
+		return check, false
+	}
 	fmt.Print("  Port: ")
 	if scanner.Scan() {
-		if v := strings.TrimSpace(scanner.Text()); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				if n < 1 || n > 65535 {
-					fmt.Println("  warning: port must be 1-65535")
-					return check, false
-				}
-				check.Port = n
-			}
-		}
+		check.Port, _ = strconv.Atoi(strings.TrimSpace(scanner.Text()))
+	}
+	if check.Port < 1 || check.Port > 65535 {
+		fmt.Println("  warning: port must be 1-65535")
+		return check, false
 	}
 	return check, true
 }
