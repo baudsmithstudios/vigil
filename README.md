@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="Vigil dashboard demo: live metrics, alerts firing and resolving, and the help, mute, and dismiss keys" width="800">
+  <img src="assets/demo.gif" alt="Vigil dashboard demo" width="800">
 </p>
 
 <p align="center">
@@ -369,7 +369,7 @@ Service Checker (goroutine) ───────────┘
 | `q` / `Ctrl+C` | Quit |
 | `j` / `↓` | Next alert |
 | `k` / `↑` | Previous alert |
-| `d` | Dismiss selected alert (an active throttle alert clears on its own; dismiss it once resolved) |
+| `d` | Dismiss selected alert (except active throttle alerts) |
 | `m` | Mute/unmute notifications (session only) |
 
 ## Comparison
