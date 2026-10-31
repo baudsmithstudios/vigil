@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.26.10 to fix a standard-library vulnerability in `crypto/x509` (GO-2026-6809)
+
 ## [0.3.2] - 2026-10-16
 
 ### Fixed
