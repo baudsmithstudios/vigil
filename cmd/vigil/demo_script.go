@@ -23,13 +23,8 @@ const (
 	gib = 1 << 30
 )
 
-<<<<<<< HEAD
-// playDemo stamps each snapshot on the script's clock, so service cycles land on
-// the same ticks as in TestDemoTimeline.
-=======
 // playDemo timestamps each snapshot from its tick number, so service checks happen
 // on the same ticks as in TestDemoTimeline.
->>>>>>> origin/wip/demo-mode
 func playDemo(ctx context.Context, out chan<- collector.Snapshot) {
 	start := time.Now()
 	ticker := time.NewTicker(demoTick)
@@ -48,11 +43,7 @@ func playDemo(ctx context.Context, out chan<- collector.Snapshot) {
 	}
 }
 
-<<<<<<< HEAD
-// demoSnapshot is a fictional Pi; nothing in it comes from the host running the demo.
-=======
 // demoSnapshot returns made-up metrics; nothing is read from the host.
->>>>>>> origin/wip/demo-mode
 func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 	during := func(from, to int) bool { return tick >= from && tick <= to }
 	drift := func(period, amplitude float64) float64 {
@@ -83,11 +74,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		mosquitto = "restarting"
 	}
 
-<<<<<<< HEAD
-	// Production checks every 30s; every other tick fits the two-failure debounce in the take.
-=======
 	// Check services every 2 ticks, not every 30s, so the two failures an alert needs happen during the recording.
->>>>>>> origin/wip/demo-mode
 	checkedAt := now.Add(-time.Duration(tick%2) * demoTick)
 
 	return collector.Snapshot{
@@ -135,11 +122,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		Throttle: collector.ThrottleSnapshot{Available: true, UnderVoltage: during(30, 47)},
 		Mounts: []collector.MountStatus{
 			{Path: "/mnt/nas", Label: "NAS Storage", Mounted: !during(17, 43)},
-<<<<<<< HEAD
-			// Three reappearances trip the mount handler's unstable alert.
-=======
 			// Three reappearances fire the mount handler's unstable alert.
->>>>>>> origin/wip/demo-mode
 			{Path: "/media/usb0", Label: "USB Backup", Mounted: !(during(21, 25) && tick%2 == 1)},
 		},
 		Services: []checker.ServiceStatus{

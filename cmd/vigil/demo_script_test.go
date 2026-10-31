@@ -13,11 +13,7 @@ import (
 	"vigil/internal/config"
 )
 
-<<<<<<< HEAD
-// Every tick after demoEndTick repeats the calm state.
-=======
 // Ticks after demoEndTick show only normal values.
->>>>>>> origin/wip/demo-mode
 const demoEndTick = 60
 
 func TestDemoTimeline(t *testing.T) {
