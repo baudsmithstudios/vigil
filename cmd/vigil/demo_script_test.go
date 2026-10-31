@@ -33,12 +33,7 @@ func TestDemoTimeline(t *testing.T) {
 	var fired, resolved []event
 	tick := 0
 	cfg := config.Defaults()
-	runLoop(context.Background(), tempDB(t), snapshots, alerting{
-		engine:   alert.New(cfg.Alerts),
-		mounts:   alert.NewMountHandler(),
-		services: alert.NewServiceHandler(cfg.Services.FailuresBeforeAlert),
-		throttle: &alert.ThrottleAlertHandler{},
-	}, nil, loopConfig{
+	runLoop(context.Background(), tempDB(t), snapshots, demoAlerting(cfg), nil, loopConfig{
 		writeBufCap: 64, containerBufCap: 64,
 		flushInterval: time.Hour, purgeInterval: time.Hour, retention: time.Hour,
 		onSnapshot: func(collector.Snapshot) { tick++ },

@@ -7,9 +7,7 @@ import (
 	"flag"
 	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"vigil/internal/alert"
 	"vigil/internal/collector"
@@ -45,20 +43,23 @@ func runDemo() error {
 	cfg := config.Defaults()
 	cfg.Theme = "dark"
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	snapshots := make(chan collector.Snapshot)
 	go playDemo(ctx, snapshots)
 
-	a := alerting{
+	runTUI(ctx, cancel, db, cfg, snapshots, demoAlerting(cfg), nil, nil, &notify.Mute{})
+	return nil
+}
+
+func demoAlerting(cfg config.Config) alerting {
+	return alerting{
 		engine:   alert.New(cfg.Alerts),
 		mounts:   alert.NewMountHandler(),
 		services: alert.NewServiceHandler(cfg.Services.FailuresBeforeAlert),
 		throttle: &alert.ThrottleAlertHandler{},
 	}
-	runTUI(ctx, cancel, db, cfg, snapshots, a, nil, nil, &notify.Mute{})
-	return nil
 }
 
 // openDemoDB opens a database in a fresh temporary directory; cleanup closes it
