@@ -30,9 +30,8 @@ func init() {
 	}
 }
 
-// runDemo plays the scripted Pi through the real alert pipeline and TUI. It
-// builds its own settings instead of loading config.toml, and passes no
-// notifier, so it can't touch a real database or send a notification.
+// runDemo never loads config.toml and passes no notifier, so it can't touch a
+// real database or send a notification.
 func runDemo() error {
 	db, cleanup, err := openDemoDB()
 	if err != nil {
@@ -62,8 +61,6 @@ func demoAlerting(cfg config.Config) alerting {
 	}
 }
 
-// openDemoDB opens a database in a fresh temporary directory; cleanup closes it
-// and removes the directory.
 func openDemoDB() (db *store.DB, cleanup func(), err error) {
 	dir, err := os.MkdirTemp("", "vigil-demo-")
 	if err != nil {

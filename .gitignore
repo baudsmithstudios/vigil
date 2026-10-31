@@ -1,35 +1,27 @@
 # Compiled binary (root only, not cmd/vigil/)
 /vigil
 
-# Go workspace and vendoring
 go.work
 go.work.sum
 vendor/
 
-# Profiling output
 *.prof
 
-# Local toolchain config
 mise.toml
 
-# Generated config
 config.toml
 
-# Database files
 *.db
 *.db-shm
 *.db-wal
 
-# Go test cache and coverage
 *.test
 *.out
 coverage.html
 
-# Build artifacts
 vigil.tar
 dist/
 
-# Development notes
 DEV_NOTES/
 
 # Secrets and credentials
@@ -40,7 +32,6 @@ DEV_NOTES/
 id_rsa*
 credentials*
 
-# Editor and OS
 .DS_Store
 *.swp
 *.swo

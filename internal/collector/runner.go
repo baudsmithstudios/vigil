@@ -26,9 +26,6 @@ type Runner struct {
 	out         chan Snapshot
 }
 
-// New returns a Runner and the channel it emits Snapshots on. Each subsystem
-// is enabled by the corresponding argument: non-empty dockerSocket, non-empty
-// mountChecks, or non-nil services.
 func New(interval time.Duration, dockerSocket string, mountChecks []config.MountCheck, services *checker.ServiceChecker) (*Runner, <-chan Snapshot) {
 	ch := make(chan Snapshot, 4)
 	r := &Runner{
@@ -49,7 +46,6 @@ func New(interval time.Duration, dockerSocket string, mountChecks []config.Mount
 	return r, ch
 }
 
-// Run blocks until ctx is cancelled, ticking once per interval.
 func (r *Runner) Run(ctx context.Context) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -81,7 +77,6 @@ func (r *Runner) deliver(snap Snapshot) {
 	}
 }
 
-// Collect gathers one snapshot synchronously (used by --once mode).
 func (r *Runner) Collect(t time.Time) Snapshot {
 	mem := collectMemory()
 	if mem.SwapReady {

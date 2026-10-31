@@ -25,7 +25,7 @@ import (
 // version is stamped at build time by goreleaser via -ldflags.
 var version = "dev"
 
-// demo runs the scripted demo when --demo is passed; only demo builds (-tags demo) set it.
+// demo is set only by -tags demo builds; it reports whether --demo ran.
 var demo func() (ran bool)
 
 func main() {
@@ -81,7 +81,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle SIGTERM / SIGINT for clean Docker shutdown.
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
@@ -112,7 +111,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Restore any alerts that were active before the last shutdown.
 	var restoredAlerts []alert.State
 	if persisted, err := db.ActiveAlerts(); err == nil && len(persisted) > 0 {
 		for _, a := range persisted {
@@ -380,7 +378,6 @@ func buildNotifier(cfg config.Notifications) (notify.Notifier, *notify.Mute, err
 	return notify.Quiet{Inner: notifiers, Windows: windows, Mute: mute}, mute, nil
 }
 
-// persistAlertChanges calls onAlert if non-nil before persisting/notifying.
 func persistAlertChanges(
 	ctx context.Context,
 	fired, resolved []alert.State,

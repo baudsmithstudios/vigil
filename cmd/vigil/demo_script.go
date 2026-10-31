@@ -14,7 +14,6 @@ import (
 const (
 	demoTick = time.Second
 
-	// The broker outage takes down both the mqtt service and the mosquitto container.
 	mqttDownFrom, mqttDownTo = 26, 45
 )
 
@@ -24,9 +23,8 @@ const (
 	gib = 1 << 30
 )
 
-// playDemo sends the scripted snapshot for each tick until ctx is done. Each
-// snapshot is stamped with its tick's time on the script's clock, so service
-// cycles land on the same ticks as in TestDemoTimeline.
+// playDemo stamps each snapshot on the script's clock, so service cycles land on
+// the same ticks as in TestDemoTimeline.
 func playDemo(ctx context.Context, out chan<- collector.Snapshot) {
 	start := time.Now()
 	ticker := time.NewTicker(demoTick)
@@ -45,15 +43,12 @@ func playDemo(ctx context.Context, out chan<- collector.Snapshot) {
 	}
 }
 
-// demoSnapshot is a fictional 4-core, 4 GB Raspberry Pi at the given tick of
-// the script. Nothing in it comes from the host running the demo.
+// demoSnapshot is a fictional Pi; nothing in it comes from the host running the demo.
 func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 	during := func(from, to int) bool { return tick >= from && tick <= to }
-	// drift keeps calm values moving without repeating in lockstep.
 	drift := func(period, amplitude float64) float64 {
 		return amplitude * math.Sin(2*math.Pi*float64(tick)/period)
 	}
-	// The CPU spike also drives temperature, load and hass's CPU.
 	cpuBusy := during(13, 45)
 	mqttDown := during(mqttDownFrom, mqttDownTo)
 
@@ -79,7 +74,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		mosquitto = "restarting"
 	}
 
-	// Production checks services every 30s; every other tick keeps the two-failure debounce inside the take.
+	// Production checks every 30s; every other tick fits the two-failure debounce in the take.
 	checkedAt := now.Add(-time.Duration(tick%2) * demoTick)
 
 	return collector.Snapshot{
@@ -127,7 +122,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		Throttle: collector.ThrottleSnapshot{Available: true, UnderVoltage: during(30, 47)},
 		Mounts: []collector.MountStatus{
 			{Path: "/mnt/nas", Label: "NAS Storage", Mounted: !during(17, 43)},
-			// Dropping out on three odd ticks makes three reappearances, which the mount handler calls unstable.
+			// Three reappearances trip the mount handler's unstable alert.
 			{Path: "/media/usb0", Label: "USB Backup", Mounted: !(during(21, 25) && tick%2 == 1)},
 		},
 		Services: []checker.ServiceStatus{

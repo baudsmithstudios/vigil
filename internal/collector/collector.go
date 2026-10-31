@@ -6,7 +6,6 @@ import (
 	"vigil/internal/checker"
 )
 
-// Snapshot is one collection tick's metrics across every subsystem.
 type Snapshot struct {
 	Timestamp        time.Time
 	CPU              CPUSnapshot
@@ -22,18 +21,17 @@ type Snapshot struct {
 	Mounts           []MountStatus
 	Services         []checker.ServiceStatus
 	ServiceCycleTime time.Time
-	UptimeSec        uint64 // system uptime in seconds
+	UptimeSec        uint64
 }
 
 type CPUSnapshot struct {
-	PercentPerCore []float64 // empty until second tick
-	PercentTotal   float64   // 0 until second tick
-	// Time breakdown as percentages (zero until second tick)
-	UserPercent   float64
-	SystemPercent float64
-	IOWaitPercent float64
-	IdlePercent   float64
-	Ready         bool // false until first real reading available
+	PercentPerCore []float64
+	PercentTotal   float64
+	UserPercent    float64
+	SystemPercent  float64
+	IOWaitPercent  float64
+	IdlePercent    float64
+	Ready          bool // false until the second tick; every other field is zero until then
 }
 
 type MemSnapshot struct {
@@ -48,13 +46,12 @@ type MemSnapshot struct {
 	SwapUsedBytes  uint64
 	SwapPercent    float64
 	SwapReady      bool
-	SwapInBytes    uint64 // cumulative bytes swapped in since boot
-	SwapOutBytes   uint64 // cumulative bytes swapped out since boot
+	SwapInBytes    uint64 // cumulative since boot
+	SwapOutBytes   uint64 // cumulative since boot
 	SwapInRate     float64
 	SwapOutRate    float64
 }
 
-// DiskSnapshot is per-partition space usage.
 type DiskSnapshot struct {
 	MountPoint string
 	TotalBytes uint64
@@ -64,7 +61,6 @@ type DiskSnapshot struct {
 	Device     string
 }
 
-// DiskIOSnapshot is per-device throughput, utilization, and latency.
 type DiskIOSnapshot struct {
 	Device      string
 	ReadRate    float64 // bytes/sec since last tick (zero on first tick)
@@ -73,25 +69,24 @@ type DiskIOSnapshot struct {
 	LatencyMs   float64 // average latency per completed IO over interval
 }
 
-// SDErrorSnapshot is the per-host MMC error count delta since the previous tick.
 type SDErrorSnapshot struct {
 	Host  string
-	Delta uint64 // count delta since previous tick
+	Delta uint64 // errors since the previous tick
 }
 
 type NetSnapshot struct {
 	Interface string
 	BytesSent uint64
 	BytesRecv uint64
-	// Rates in bytes/sec since last tick (zero on first tick)
+	// Bytes/sec since last tick (zero on first tick)
 	SendRate float64
 	RecvRate float64
-	// Cumulative error and drop counts
+	// Cumulative
 	ErrIn   uint64
 	ErrOut  uint64
 	DropIn  uint64
 	DropOut uint64
-	// Combined (in+out) rates per second since last tick (zero on first tick)
+	// In+out per second since last tick (zero on first tick)
 	DropRate float64
 	ErrRate  float64
 }
@@ -108,18 +103,18 @@ type TempSnapshot struct {
 }
 
 type MountStatus struct {
-	Path     string // configured path
-	Label    string // user-friendly name
-	Mounted  bool   // present in /proc/mounts this tick
-	Unstable bool   // flap detection triggered (set by alert handler)
+	Path     string
+	Label    string
+	Mounted  bool
+	Unstable bool // set by the alert handler
 }
 
 type ContainerSnapshot struct {
-	Name       string  // container name (without leading slash)
-	ID         string  // short container ID (12 chars)
-	Status     string  // running, exited, restarting, paused, etc.
-	CPUPercent float64 // CPU usage as a percentage of total host CPU
-	MemUsed    uint64  // current memory usage in bytes
-	MemLimit   uint64  // memory limit in bytes (0 if unlimited)
-	MemPercent float64 // memory usage as percentage of limit
+	Name       string
+	ID         string
+	Status     string
+	CPUPercent float64 // 100 = one full core
+	MemUsed    uint64
+	MemLimit   uint64  // 0 if unlimited
+	MemPercent float64 // of MemLimit
 }

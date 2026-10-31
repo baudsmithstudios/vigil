@@ -1,4 +1,3 @@
-# Build stage
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /build
@@ -10,26 +9,21 @@ COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o vigil ./cmd/vigil
 
 
-# Runtime stage — pinned version for reproducible builds.
+# Pinned for reproducible builds.
 FROM alpine:3.21
 
-# vcgencmd is used to read Pi throttle/voltage state.
-# The package only exists on ARM — the install is skipped on other architectures.
+# vcgencmd reads Pi throttle state. The package only exists on ARM, so other
+# architectures skip the install.
 RUN apk add --no-cache raspberrypi-utils 2>/dev/null || true
 
-# Non-root user for running the process.
-# Some /sys reads (temperature, throttle) may still need group permissions —
-# add the container to the appropriate host group if needed.
+# Some /sys reads may still need the container in a host group.
 RUN adduser -D -u 1000 vigil
 
 WORKDIR /app
 COPY --from=builder /build/vigil .
 
-# Config is bind-mounted at runtime, not baked into the image.
-# This prevents secrets (webhook URLs) from leaking into image layers.
-# Mount your config.toml to /app/config.toml via docker-compose volumes.
-
-# /data is where the SQLite DB lives — bind-mount this to your external drive.
+# config.toml is bind-mounted at runtime so webhook URLs stay out of image layers.
+# /data holds the SQLite DB; bind-mount it to your external drive.
 RUN mkdir /data && chown vigil:vigil /data
 
 USER vigil

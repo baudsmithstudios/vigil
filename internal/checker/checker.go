@@ -20,10 +20,9 @@ type ServiceStatus struct {
 	StatusCode int // HTTP only, 0 for TCP
 	Latency    time.Duration
 	CheckedAt  time.Time
-	Error      string // empty when healthy
+	Error      string
 }
 
-// ServiceChecker runs periodic HTTP and TCP health checks.
 type ServiceChecker struct {
 	interval   time.Duration
 	httpChecks []config.HTTPCheck
@@ -49,7 +48,6 @@ func New(svc config.Services, httpChecks []config.HTTPCheck, portChecks []config
 	}
 }
 
-// Run executes health checks immediately, then on each tick until ctx is cancelled.
 func (sc *ServiceChecker) Run(ctx context.Context) {
 	sc.runCycle()
 	ticker := time.NewTicker(sc.interval)

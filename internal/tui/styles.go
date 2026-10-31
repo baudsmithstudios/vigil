@@ -2,7 +2,6 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Package-level style vars. Set by buildStyles() at startup.
 var (
 	appTitleStyle      lipgloss.Style
 	headerStyle        lipgloss.Style
@@ -36,8 +35,6 @@ var (
 	pwrWarnStyle      lipgloss.Style
 	pwrThrottledStyle lipgloss.Style
 
-	// panelStyle wraps each dashboard section. Width(w) sets the content+padding
-	// area; total terminal width = w + 2 (left/right border chars).
 	panelStyle       lipgloss.Style
 	helpBorderStyle  lipgloss.Style
 	helpTitleStyle   lipgloss.Style

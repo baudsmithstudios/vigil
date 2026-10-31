@@ -1,8 +1,6 @@
 package collector
 
-// applySwapRates computes swap in/out byte rates per second from cumulative
-// counters. Caller must pass elapsed > 0. Counter rollback is treated as
-// unavailable data for the interval.
+// Caller must pass elapsed > 0. A counter rollback leaves that rate at zero.
 func applySwapRates(prevIn, prevOut, curIn, curOut uint64, elapsed float64) (inRate, outRate float64) {
 	if curIn >= prevIn {
 		inRate = float64(curIn-prevIn) / elapsed

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The dashboard no longer crashes on terminals under 160 columns when no containers, services, or mounts are configured
+- A rule with both a threshold and `sustained_ticks` now fires its delta alert during the sustain window
+- `vigil init` no longer accepts a port check with no host or an invalid port, which wrote a config that failed validation
 - A resolved throttle alert can now be dismissed; it used to stay listed until restart
 - Panel rows too long for their panel are now cut at the panel's width instead of being mangled, which affected terminals 100-159 columns wide
 - Long container, service, mount, disk, and interface names no longer run into the next column

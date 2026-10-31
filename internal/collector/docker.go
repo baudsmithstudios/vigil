@@ -19,11 +19,10 @@ const (
 	dockerAPIVersion = "v1.43"
 
 	// Maximum response sizes to prevent unbounded memory allocation.
-	maxContainerListBytes = 8 << 20 // 8 MB — container list can be large on busy hosts
-	maxContainerStatBytes = 1 << 20 // 1 MB — single container stats payload
+	maxContainerListBytes = 8 << 20
+	maxContainerStatBytes = 1 << 20
 )
 
-// dockerCollector reads container stats via the Docker Engine API over a Unix socket.
 type dockerCollector struct {
 	client   *http.Client
 	socket   string
@@ -87,14 +86,14 @@ func (d *dockerCollector) collect() []ContainerSnapshot {
 	snapshots := make([]ContainerSnapshot, 0, len(containers))
 	for _, c := range containers {
 		if len(c.Names) == 0 {
-			continue // skip containers with no name
+			continue
 		}
 		name := c.Names[0]
 		if strings.HasPrefix(name, "/") {
 			name = name[1:]
 		}
 		if !isValidContainerID(c.ID) {
-			continue // skip containers with suspicious IDs
+			continue
 		}
 		shortID := c.ID
 		if len(shortID) > 12 {
@@ -107,12 +106,11 @@ func (d *dockerCollector) collect() []ContainerSnapshot {
 			Status: c.State,
 		}
 
-		// Only fetch stats for running containers.
 		if c.State == "running" {
 			if stats, err := d.getStats(c.ID); err == nil {
 				snap.CPUPercent = calculateCPUPercent(stats)
 				snap.MemUsed = stats.MemoryStats.Usage
-				// Subtract inactive_file (cache) from usage if available.
+				// inactive_file is reclaimable page cache.
 				if cache, ok := stats.MemoryStats.Stats["inactive_file"]; ok && snap.MemUsed > cache {
 					snap.MemUsed -= cache
 				}
@@ -168,7 +166,6 @@ func (d *dockerCollector) getStats(containerID string) (*dockerStats, error) {
 	return &stats, nil
 }
 
-// calculateCPUPercent uses the (cpu - precpu) / (system - presystem) ratio, scaled by online CPUs.
 func calculateCPUPercent(stats *dockerStats) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)

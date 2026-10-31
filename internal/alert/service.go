@@ -22,7 +22,6 @@ type serviceState struct {
 	failureCount int
 }
 
-// ServiceAlertHandler fires alerts after N consecutive service-check failures.
 type ServiceAlertHandler struct {
 	mu        sync.Mutex
 	states    map[string]*serviceState
@@ -36,7 +35,6 @@ func NewServiceHandler(failuresBeforeAlert int) *ServiceAlertHandler {
 	}
 }
 
-// Restore reloads previously-firing alerts so they survive restarts.
 func (h *ServiceAlertHandler) Restore(states []State) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
