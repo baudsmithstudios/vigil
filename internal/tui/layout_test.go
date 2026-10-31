@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"vigil/internal/collector"
 )
 
@@ -107,6 +108,20 @@ func TestRenderRow_SinglePanel(t *testing.T) {
 	result := renderRow(row, contents, nil, 100)
 	if !strings.Contains(result, "CPU") {
 		t.Error("single-panel row should contain CPU")
+	}
+}
+
+func TestRenderPanel_TruncatesStyledLineByVisibleWidth(t *testing.T) {
+	const width, innerW = 12, 10
+	styled := "\x1b[31m" + strings.Repeat("x", 20) + "\x1b[0m"
+
+	row := strings.Split(renderPanel("T", styled, width), "\n")[1]
+
+	if got := strings.Count(row, "x"); got != innerW {
+		t.Errorf("kept %d visible chars, want %d: %q", got, innerW, row)
+	}
+	if got := lipgloss.Width(row); got != width+2 {
+		t.Errorf("row width = %d, want %d: %q", got, width+2, row)
 	}
 }
 

@@ -205,8 +205,8 @@ func renderPanel(title, content string, width int) string {
 		// Truncate or pad each line to fill the inner width.
 		lineW := lipgloss.Width(line)
 		if lineW > innerW {
-			line = line[:innerW]
-			lineW = innerW
+			line = lipgloss.NewStyle().MaxWidth(innerW).Render(line)
+			lineW = lipgloss.Width(line)
 		}
 		fill := ""
 		if innerW > lineW {
