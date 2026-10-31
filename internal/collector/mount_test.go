@@ -15,14 +15,10 @@ func TestParseProcMounts(t *testing.T) {
 tmpfs /tmp tmpfs rw 0 0
 `
 	mounts := parseProcMounts([]byte(content))
-	if !mounts["/mnt/data"] {
-		t.Error("expected /mnt/data to be in mount map")
-	}
-	if !mounts["/media/usb0"] {
-		t.Error("expected /media/usb0 to be in mount map")
-	}
-	if !mounts["/tmp"] {
-		t.Error("expected /tmp to be in mount map")
+	for _, path := range []string{"/mnt/data", "/media/usb0", "/tmp"} {
+		if !mounts[path] {
+			t.Errorf("expected %s to be in mount map", path)
+		}
 	}
 }
 

@@ -181,10 +181,6 @@ func TestOnceOutputMapsRepresentativeValues(t *testing.T) {
 func TestRunOnceJSONDoesNotOpenDatabase(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.DBPath = filepath.Join(t.TempDir(), "missing", "vigil.db")
-	cfg.Docker.Socket = ""
-	cfg.MountChecks = nil
-	cfg.HTTPChecks = nil
-	cfg.PortChecks = nil
 
 	var out bytes.Buffer
 	if err := runOnceJSON(&out, cfg); err != nil {

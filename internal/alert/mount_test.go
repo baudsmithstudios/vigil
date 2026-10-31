@@ -77,25 +77,32 @@ func TestMountHandler_DoesNotReFireWhileFiring(t *testing.T) {
 
 func TestMountHandler_FlapDetection(t *testing.T) {
 	h := NewMountHandler()
-	h.flapWindow = 5 * time.Minute
-	h.flapThreshold = 3
-
-	var allFired []State
-	for flap := 0; flap < 3; flap++ {
-		fired, _ := h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: false}})
-		allFired = append(allFired, fired...)
-		fired, _ = h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: true}})
-		allFired = append(allFired, fired...)
-	}
-
-	var unstableFound bool
-	for _, a := range allFired {
-		if a.Name == "mount_unstable:/mnt/data" {
-			unstableFound = true
+	for flap := 1; flap <= 3; flap++ {
+		h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: false}})
+		fired, _ := h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: true}})
+		if unstable := len(fired) == 1 && fired[0].Name == "mount_unstable:/mnt/data"; unstable != (flap == 3) {
+			t.Errorf("flap %d: fired %+v", flap, fired)
 		}
 	}
-	if !unstableFound {
-		t.Error("expected unstable alert after 3 flaps")
+}
+
+func TestMountHandler_UnstableResolvesWhenFlapWindowExpires(t *testing.T) {
+	h := NewMountHandler()
+	for flap := 0; flap < 3; flap++ {
+		h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: false}})
+		h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: true}})
+	}
+	if !h.IsUnstable("/mnt/data") {
+		t.Fatal("setup: expected the mount to be unstable")
+	}
+
+	h.states["/mnt/data"].flapStart = time.Now().Add(-h.flapWindow - time.Second)
+	_, resolved := h.Evaluate([]collector.MountStatus{{Path: "/mnt/data", Mounted: true}})
+	if len(resolved) != 1 || resolved[0].Name != "mount_unstable:/mnt/data" {
+		t.Fatalf("expected unstable to resolve, got %+v", resolved)
+	}
+	if h.IsUnstable("/mnt/data") {
+		t.Error("expected the mount to be stable again")
 	}
 }
 

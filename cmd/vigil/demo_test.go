@@ -12,7 +12,7 @@ import (
 
 func TestOpenDemoDBUsesThrowawayDir(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("TMPDIR", tmp) // os.TempDir() reads it, so the demo db lands somewhere this test owns
+	t.Setenv("TMPDIR", tmp)
 	pattern := filepath.Join(tmp, "vigil-demo-*", "vigil.db")
 
 	db, cleanup, err := openDemoDB()

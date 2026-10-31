@@ -8,6 +8,19 @@ import (
 	"time"
 )
 
+func loadTOML(t *testing.T, content string) Config {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return cfg
+}
+
 func TestValidateDockerSocket(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -68,23 +81,14 @@ func TestValidateMountChecks(t *testing.T) {
 }
 
 func TestLoadMountChecks(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `
+	cfg := loadTOML(t, `
 [[mount_checks]]
 path = "/mnt/data"
 label = "NAS Storage"
 
 [[mount_checks]]
 path = "/media/usb0"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`)
 	if len(cfg.MountChecks) != 2 {
 		t.Fatalf("expected 2 mount_checks, got %d", len(cfg.MountChecks))
 	}
@@ -97,19 +101,10 @@ path = "/media/usb0"
 }
 
 func TestLoadNotificationsNtfyDefaultServer(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `
+	cfg := loadTOML(t, `
 [notifications]
 ntfy_topic = "vigil-alerts"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`)
 	if cfg.Notifications.NtfyTopic != "vigil-alerts" {
 		t.Errorf("expected ntfy topic, got %q", cfg.Notifications.NtfyTopic)
 	}
@@ -119,20 +114,11 @@ ntfy_topic = "vigil-alerts"
 }
 
 func TestLoadNotificationsNtfyCustomServer(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `
+	cfg := loadTOML(t, `
 [notifications]
 ntfy_topic = "vigil-alerts"
 ntfy_server = "https://ntfy.example.com"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`)
 	if cfg.Notifications.NtfyServer != "https://ntfy.example.com" {
 		t.Errorf("expected custom ntfy server, got %q", cfg.Notifications.NtfyServer)
 	}
@@ -209,7 +195,6 @@ func TestValidateHTTPChecks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Defaults()
-			cfg.Services.Interval = TestDuration(30 * time.Second)
 			cfg.HTTPChecks = tt.checks
 			err := cfg.validate()
 			if (err != nil) != tt.wantErr {
@@ -235,7 +220,6 @@ func TestValidatePortChecks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Defaults()
-			cfg.Services.Interval = TestDuration(30 * time.Second)
 			cfg.PortChecks = tt.checks
 			err := cfg.validate()
 			if (err != nil) != tt.wantErr {
@@ -245,31 +229,8 @@ func TestValidatePortChecks(t *testing.T) {
 	}
 }
 
-func TestValidateDuplicateNamesAcrossCheckTypes(t *testing.T) {
-	cfg := Defaults()
-	cfg.Services.Interval = TestDuration(30 * time.Second)
-	cfg.HTTPChecks = []HTTPCheck{{Name: "myservice", URL: "http://example.com"}}
-	cfg.PortChecks = []PortCheck{{Name: "myservice", Host: "192.0.2.1", Port: 22}}
-	err := cfg.validate()
-	if err == nil {
-		t.Error("expected error for duplicate name across check types, got nil")
-	}
-}
-
-func TestValidateServicesInterval(t *testing.T) {
-	cfg := Defaults()
-	cfg.Services.Interval = TestDuration(0)
-	cfg.HTTPChecks = []HTTPCheck{{Name: "web", URL: "http://example.com"}}
-	err := cfg.validate()
-	if err == nil {
-		t.Error("expected error for zero interval with checks configured, got nil")
-	}
-}
-
 func TestLoadHTTPAndPortChecks(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `
+	cfg := loadTOML(t, `
 [services]
 interval = "15s"
 failures_before_alert = 3
@@ -283,14 +244,7 @@ expected_status = 200
 name = "ssh"
 host = "192.0.2.1"
 port = 22
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`)
 	if cfg.Services.Interval.Duration != 15*time.Second {
 		t.Errorf("expected 15s interval, got %s", cfg.Services.Interval.Duration)
 	}
@@ -311,26 +265,33 @@ port = 22
 	}
 }
 
-func TestLoadHTTPCheckDefaultExpectedStatus(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `
-[services]
-interval = "10s"
-
-[[http_checks]]
-name = "web"
-url = "http://example.com"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
+func TestValidateRejects(t *testing.T) {
+	checks := func(c *Config) { c.HTTPChecks = []HTTPCheck{{Name: "web", URL: "https://example.com"}} }
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{"zero interval", func(c *Config) { c.Interval = TestDuration(0) }},
+		{"zero retention", func(c *Config) { c.Retention = TestDuration(0) }},
+		{"zero service interval with checks", func(c *Config) { checks(c); c.Services.Interval = TestDuration(0) }},
+		{"no failures before alert with checks", func(c *Config) { checks(c); c.Services.FailuresBeforeAlert = 0 }},
+		{"check name shared across types", func(c *Config) {
+			checks(c)
+			c.PortChecks = []PortCheck{{Name: "web", Host: "192.0.2.1", Port: 22}}
+		}},
+		{"duplicate alert metric", func(c *Config) {
+			c.Alerts = []Alert{{Metric: "cpu_percent"}, {Metric: "cpu_percent"}}
+		}},
+		{"alert without a metric", func(c *Config) { c.Alerts = []Alert{{Threshold: 90}} }},
 	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.HTTPChecks[0].ExpectedStatus != 0 {
-		t.Errorf("expected default expected_status 0, got %d", cfg.HTTPChecks[0].ExpectedStatus)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			tt.mutate(&cfg)
+			if err := cfg.validate(); err == nil {
+				t.Error("expected an error, got nil")
+			}
+		})
 	}
 }
 
@@ -358,33 +319,11 @@ func TestValidateTheme(t *testing.T) {
 	}
 }
 
-func TestValidateDuplicateAlertMetrics(t *testing.T) {
-	cfg := Defaults()
-	cfg.Alerts = []Alert{
-		{Metric: "cpu_percent", Threshold: 90, Above: true, Message: "cpu high"},
-		{Metric: "cpu_percent", Threshold: 95, Above: true, Message: "cpu very high"},
-	}
-
-	err := cfg.validate()
-	if err == nil {
-		t.Fatal("expected error for duplicate alert metrics, got nil")
-	}
-}
-
 func TestLoadValidFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	content := `db_path = "/tmp/test.db"
+	cfg := loadTOML(t, `db_path = "/tmp/test.db"
 interval = "5s"
 retention = "24h"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`)
 	if cfg.DBPath != "/tmp/test.db" {
 		t.Errorf("expected /tmp/test.db, got %s", cfg.DBPath)
 	}

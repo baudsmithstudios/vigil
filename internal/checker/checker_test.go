@@ -2,7 +2,6 @@ package checker
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -12,44 +11,42 @@ import (
 	"vigil/internal/config"
 )
 
-func newTestChecker(httpChecks []config.HTTPCheck, portChecks []config.PortCheck) *ServiceChecker {
-	svc := config.Services{
-		Interval:            config.TestDuration(time.Second),
-		FailuresBeforeAlert: 2,
+func checkOnce(t *testing.T, httpChecks []config.HTTPCheck, portChecks []config.PortCheck) ServiceStatus {
+	t.Helper()
+	sc := New(config.Services{}, httpChecks, portChecks)
+	sc.CheckOnce()
+	results, _ := sc.Snapshot()
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
 	}
-	return New(svc, httpChecks, portChecks)
+	return results[0]
 }
 
-func waitForResults(t *testing.T, sc *ServiceChecker, n int) []ServiceStatus {
+func statusServer(t *testing.T, code int) string {
 	t.Helper()
-	deadline := time.Now().Add(1500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		results, _ := sc.Snapshot()
-		if len(results) >= n {
-			return results
-		}
-		time.Sleep(50 * time.Millisecond)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(code)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func listen(t *testing.T, addr string) net.Listener {
+	t.Helper()
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Skipf("cannot listen on %s: %v", addr, err)
 	}
-	t.Fatalf("timed out waiting for %d results", n)
-	return nil
+	t.Cleanup(func() { ln.Close() })
+	return ln
+}
+
+func port(ln net.Listener) int {
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 func TestHTTPCheck_Success(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "web", URL: srv.URL, ExpectedStatus: 200}},
-		nil,
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	r := checkOnce(t, []config.HTTPCheck{{Name: "web", URL: statusServer(t, 200), ExpectedStatus: 200}}, nil)
 	if r.Name != "web" {
 		t.Errorf("expected name 'web', got %q", r.Name)
 	}
@@ -74,21 +71,7 @@ func TestHTTPCheck_Success(t *testing.T) {
 }
 
 func TestHTTPCheck_WrongStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(503)
-	}))
-	defer srv.Close()
-
-	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "api", URL: srv.URL, ExpectedStatus: 200}},
-		nil,
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	r := checkOnce(t, []config.HTTPCheck{{Name: "api", URL: statusServer(t, 503), ExpectedStatus: 200}}, nil)
 	if r.Up {
 		t.Error("expected Up=false for wrong status")
 	}
@@ -100,24 +83,20 @@ func TestHTTPCheck_WrongStatus(t *testing.T) {
 	}
 }
 
-func TestHTTPCheck_DefaultExpectedStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(204)
-	}))
-	defer srv.Close()
-
-	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "no-content", URL: srv.URL, ExpectedStatus: 0}},
-		nil,
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
-	if !r.Up {
-		t.Error("expected Up=true for 204 with default expected status (any 2xx)")
+func TestHTTPCheck_NoExpectedStatusMeansAny2xx(t *testing.T) {
+	tests := []struct {
+		code int
+		up   bool
+	}{
+		{204, true},
+		{299, true},
+		{300, false},
+	}
+	for _, tt := range tests {
+		r := checkOnce(t, []config.HTTPCheck{{Name: "web", URL: statusServer(t, tt.code)}}, nil)
+		if r.Up != tt.up {
+			t.Errorf("status %d: Up = %v, want %v", tt.code, r.Up, tt.up)
+		}
 	}
 }
 
@@ -126,16 +105,7 @@ func TestHTTPCheck_ConnectionRefused(t *testing.T) {
 	url := srv.URL
 	srv.Close()
 
-	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "dead", URL: url, ExpectedStatus: 200}},
-		nil,
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	r := checkOnce(t, []config.HTTPCheck{{Name: "dead", URL: url, ExpectedStatus: 200}}, nil)
 	if r.Up {
 		t.Error("expected Up=false for connection refused")
 	}
@@ -145,26 +115,8 @@ func TestHTTPCheck_ConnectionRefused(t *testing.T) {
 }
 
 func TestTCPCheck_Success(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ln.Close()
-
-	_, portStr, _ := net.SplitHostPort(ln.Addr().String())
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
-
-	sc := newTestChecker(
-		nil,
-		[]config.PortCheck{{Name: "listener", Host: "127.0.0.1", Port: port}},
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	ln := listen(t, "127.0.0.1:0")
+	r := checkOnce(t, nil, []config.PortCheck{{Name: "listener", Host: "127.0.0.1", Port: port(ln)}})
 	if r.Name != "listener" {
 		t.Errorf("expected name 'listener', got %q", r.Name)
 	}
@@ -177,17 +129,11 @@ func TestTCPCheck_Success(t *testing.T) {
 }
 
 func TestTCPCheck_ConnectionRefused(t *testing.T) {
-	port := closedTCPPort(t)
-	sc := newTestChecker(
-		nil,
-		[]config.PortCheck{{Name: "dead-port", Host: "127.0.0.1", Port: port}},
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
+	ln := listen(t, "127.0.0.1:0")
+	closed := port(ln)
+	ln.Close()
 
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	r := checkOnce(t, nil, []config.PortCheck{{Name: "dead-port", Host: "127.0.0.1", Port: closed}})
 	if r.Up {
 		t.Error("expected Up=false for connection refused")
 	}
@@ -197,43 +143,17 @@ func TestTCPCheck_ConnectionRefused(t *testing.T) {
 }
 
 func TestTCPCheck_IPv6(t *testing.T) {
-	ln, err := net.Listen("tcp", "[::1]:0")
-	if err != nil {
-		t.Skip("IPv6 loopback not available")
-	}
-	defer ln.Close()
-
-	_, portStr, _ := net.SplitHostPort(ln.Addr().String())
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
-
-	sc := newTestChecker(
-		nil,
-		[]config.PortCheck{{Name: "ipv6-listener", Host: "::1", Port: port}},
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sc.Run(ctx)
-
-	results := waitForResults(t, sc, 1)
-	r := results[0]
+	ln := listen(t, "[::1]:0")
+	r := checkOnce(t, nil, []config.PortCheck{{Name: "ipv6-listener", Host: "::1", Port: port(ln)}})
 	if !r.Up {
 		t.Errorf("expected Up=true for IPv6 TCP check, got false; error: %s", r.Error)
 	}
 }
 
-func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	url := srv.URL
-	srv.Close()
-
-	sc := newTestChecker(
-		[]config.HTTPCheck{{Name: "dummy", URL: url, ExpectedStatus: 200}},
-		nil,
-	)
-
+func TestRun_ChecksBeforeTheFirstTick(t *testing.T) {
+	sc := New(config.Services{Interval: config.TestDuration(time.Hour)}, nil, nil)
 	if _, cycle := sc.Snapshot(); !cycle.IsZero() {
-		t.Error("expected zero CycleTime before Run")
+		t.Error("expected zero cycle time before Run")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -245,53 +165,21 @@ func TestCycleTime_AdvancesAfterCycle(t *testing.T) {
 		if _, cycle := sc.Snapshot(); !cycle.IsZero() {
 			return
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("expected non-zero CycleTime after Run")
-}
-
-func closedTCPPort(t *testing.T) int {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, portStr, err := net.SplitHostPort(ln.Addr().String())
-	if err != nil {
-		ln.Close()
-		t.Fatal(err)
-	}
-	ln.Close()
-
-	var port int
-	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
-		t.Fatal(err)
-	}
-	return port
+	t.Error("expected a completed cycle without waiting for the ticker")
 }
 
 func TestSnapshot_ReturnsCopyAndCycleTime(t *testing.T) {
 	now := time.Now()
-	sc := &ServiceChecker{
-		results: []ServiceStatus{
-			{Name: "web", CheckType: "http", Up: true, StatusCode: 200},
-		},
-		cycleTime: now,
+	sc := &ServiceChecker{results: []ServiceStatus{{Name: "web"}}, cycleTime: now}
+
+	got, cycle := sc.Snapshot()
+	if !cycle.Equal(now) {
+		t.Fatalf("expected cycle time %v, got %v", now, cycle)
 	}
 
-	gotResults, gotCycle := sc.Snapshot()
-	if !gotCycle.Equal(now) {
-		t.Fatalf("expected cycle time %v, got %v", now, gotCycle)
-	}
-	if len(gotResults) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(gotResults))
-	}
-	if gotResults[0].Name != "web" {
-		t.Fatalf("expected result name web, got %q", gotResults[0].Name)
-	}
-
-	// Snapshot must return a copy to avoid caller mutation of internal state.
-	gotResults[0].Name = "mutated"
+	got[0].Name = "mutated"
 	after, _ := sc.Snapshot()
 	if after[0].Name != "web" {
 		t.Fatal("expected Snapshot to return a defensive copy")
