@@ -13,6 +13,9 @@ import (
 	"vigil/internal/config"
 )
 
+// demoEndTick is the last scripted tick; every later tick repeats the calm state.
+const demoEndTick = 60
+
 // TestDemoTimeline runs the script through the real runLoop and alert handlers.
 func TestDemoTimeline(t *testing.T) {
 	base := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)

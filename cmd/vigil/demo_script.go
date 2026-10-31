@@ -13,11 +13,7 @@ import (
 
 const (
 	demoTick = time.Second
-	// demoEndTick is the last scripted tick; every later tick repeats the calm state.
-	demoEndTick = 60
 
-	// The CPU spike also drives temperature, load and hass's CPU.
-	cpuBusyFrom, cpuBusyTo = 13, 45
 	// The broker outage takes down both the mqtt service and the mosquitto container.
 	mqttDownFrom, mqttDownTo = 26, 45
 )
@@ -57,7 +53,8 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 	drift := func(period, amplitude float64) float64 {
 		return amplitude * math.Sin(2*math.Pi*float64(tick)/period)
 	}
-	cpuBusy := during(cpuBusyFrom, cpuBusyTo)
+	// The CPU spike also drives temperature, load and hass's CPU.
+	cpuBusy := during(13, 45)
 	mqttDown := during(mqttDownFrom, mqttDownTo)
 
 	cpu := 11.5 + drift(9, 3.5)
@@ -82,14 +79,8 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		mosquitto = "restarting"
 	}
 
-	// Service checks run every other tick, like the production 2s cycle at the demo's 1s tick.
+	// Production checks services every 30s; every other tick keeps the two-failure debounce inside the take.
 	checkedAt := now.Add(-time.Duration(tick%2) * demoTick)
-	mqtt := checker.ServiceStatus{Name: "mqtt", CheckType: "tcp", Up: true, Latency: time.Duration(3+drift(13, 1)) * time.Millisecond, CheckedAt: checkedAt}
-	if mqttDown {
-		mqtt.Up = false
-		mqtt.Latency = 0
-		mqtt.Error = "dial tcp 192.0.2.10:1883: connect: connection refused"
-	}
 
 	return collector.Snapshot{
 		Timestamp: now,
@@ -105,7 +96,6 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		Memory: collector.MemSnapshot{
 			TotalBytes:     4 * gib,
 			UsedBytes:      memUsed,
-			AvailableBytes: 4*gib - memUsed,
 			CachedBytes:    1100 * mib,
 			BuffersBytes:   90 * mib,
 			Percent:        memPercent,
@@ -115,8 +105,8 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 			SwapReady:      true,
 		},
 		Disks: []collector.DiskSnapshot{
-			{MountPoint: "/", Device: "mmcblk0p2", TotalBytes: 29 * gib, UsedBytes: 29 * gib * 28 / 100, FreeBytes: 29 * gib * 72 / 100, Percent: 28},
-			{MountPoint: "/data", Device: "sda1", TotalBytes: 916 * gib, UsedBytes: 916 * gib * 41 / 100, FreeBytes: 916 * gib * 59 / 100, Percent: 41},
+			{MountPoint: "/", Device: "mmcblk0p2", TotalBytes: 29 * gib, UsedBytes: 29 * gib * 28 / 100, Percent: 28},
+			{MountPoint: "/data", Device: "sda1", TotalBytes: 916 * gib, UsedBytes: 916 * gib * 41 / 100, Percent: 41},
 		},
 		DiskIO: []collector.DiskIOSnapshot{
 			{Device: "mmcblk0", ReadRate: 12*kib + drift(7, 4*kib), WriteRate: 48*kib + drift(9, 12*kib), UtilPercent: 2 + drift(7, 0.5), LatencyMs: 1.5},
@@ -143,7 +133,7 @@ func demoSnapshot(tick int, now time.Time) collector.Snapshot {
 		Services: []checker.ServiceStatus{
 			{Name: "hass", CheckType: "http", Up: true, StatusCode: 200, Latency: time.Duration(18+drift(9, 4)) * time.Millisecond, CheckedAt: checkedAt},
 			{Name: "grafana", CheckType: "http", Up: true, StatusCode: 200, Latency: time.Duration(32+drift(11, 6)) * time.Millisecond, CheckedAt: checkedAt},
-			mqtt,
+			{Name: "mqtt", CheckType: "tcp", Up: !mqttDown, Latency: time.Duration(3+drift(13, 1)) * time.Millisecond, CheckedAt: checkedAt},
 		},
 		ServiceCycleTime: checkedAt,
 		UptimeSec:        (12*24+4)*3600 + uint64(tick),
